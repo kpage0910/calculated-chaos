@@ -97,6 +97,7 @@ const ball = {
 // Lives system
 let lives = 3;
 let respawning = false;
+let gameOver = false;
 
 // Anvils system
 let anvils = [];
@@ -252,6 +253,12 @@ canvas.addEventListener(
   },
   { passive: false }
 );
+
+// Play Again button event listener
+document.addEventListener("DOMContentLoaded", () => {
+  const playAgainButton = document.getElementById("playAgainButton");
+  playAgainButton.addEventListener("click", resetGame);
+});
 
 function handleInput() {
   const airControlFactor = ball.onSeesaw ? 1.8 : 0.3; // Strong but balanced control on seesaw
@@ -473,6 +480,50 @@ function respawnBall() {
 
   // Prevent ball from immediately colliding with anvils during respawn
   setTimeout(() => (respawning = false), 500);
+}
+
+function resetGame() {
+  // Reset game state
+  gameOver = false;
+  lives = 3;
+  respawning = false;
+
+  // Reset ball
+  Object.assign(ball, {
+    x: seesawX,
+    y: seesawY - 50,
+    radius: OBJECTS.ball.radius,
+    velocityX: 0,
+    velocityY: 0,
+    onSeesaw: false,
+    isSquished: false,
+    squishTimer: 0,
+    squishAmount: 1.0,
+  });
+
+  // Clear anvils
+  anvils = [];
+  anvilSpawnTimer = 0;
+
+  // Reset seesaw
+  seesawAngle = 0;
+  targetSeesawAngle = 0;
+
+  // Clear splash effects
+  splash = { active: false, x: 0, y: 0, particles: [], timer: 0 };
+
+  // Hide game over screen
+  const gameOverScreen = document.getElementById("gameOverScreen");
+  gameOverScreen.classList.add("game-over-hidden");
+
+  // Restart the game loop
+  requestAnimationFrame(animate);
+}
+
+function showGameOver() {
+  gameOver = true;
+  const gameOverScreen = document.getElementById("gameOverScreen");
+  gameOverScreen.classList.remove("game-over-hidden");
 }
 function spawnAnvil() {
   // Don't spawn if too many anvils already exist
@@ -970,11 +1021,14 @@ function animate(currentTime = 0) {
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  handleInput();
-  updateBall();
-  updateAnvils();
-  updateSeesawPhysics(); // Update seesaw physics smoothly
-  updateSplash(); // Update splash particles
+  // Don't update game logic if game is over
+  if (!gameOver) {
+    handleInput();
+    updateBall();
+    updateAnvils();
+    updateSeesawPhysics(); // Update seesaw physics smoothly
+    updateSplash(); // Update splash particles
+  }
 
   // Draw background elements first
   drawSky();
@@ -990,12 +1044,8 @@ function animate(currentTime = 0) {
   drawLives();
 
   // Game over check
-  if (lives <= 0) {
-    ctx.fillStyle = "#FF0000";
-    ctx.font = "48px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
-    ctx.textAlign = "left"; // Reset alignment
+  if (lives <= 0 && !gameOver) {
+    showGameOver();
     return; // Stop the game loop
   }
 
