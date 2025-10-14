@@ -28,6 +28,7 @@ canvas {
   width: auto;
   height: auto;
   display: block;
+  touch-action: manipulation; /* Improves touch responsiveness */
 }
 
 /* Mobile-specific adjustments */
@@ -42,7 +43,9 @@ canvas {
   }
 
   canvas {
-    max-height: calc(100vh - 120px);
+    max-height: calc(100vh - 100px);
+    width: 100vw;
+    max-width: calc(100vw - 10px);
   }
 
   .mobile-only {
