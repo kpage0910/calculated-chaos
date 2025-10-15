@@ -138,9 +138,9 @@ const MOBILE_PHYSICS = {
   gravity: 0.38, // Slightly stronger gravity on mobile for better responsiveness
   friction: 0.94, // Reduced friction for more responsive movement (was 0.96)
   moveSpeed: 0.75, // Much stronger movement for touch controls (increased from 0.55)
-  angleSmoothing: 0.09,
-  torqueScale: 0.00012,
-  maxAngle: 0.45,
+  angleSmoothing: 0.08, // Keep same as desktop for consistent seesaw behavior
+  torqueScale: 0.0001, // Keep same as desktop for consistent anvil impact
+  maxAngle: 0.4, // Keep same as desktop for consistent seesaw tilt limits
 };
 
 // Get appropriate physics values based on device
@@ -1378,9 +1378,8 @@ function handleMidAirAnvilCollision(anvil) {
     : objects.anvil.weight;
   const baseImpactForce = Math.abs(anvil.velocityY) * anvilMass * 0.3;
 
-  // Apply mobile multiplier for big anvils to make them more impactful on mobile
-  const mobileMultiplier = isMobile && anvil.isBig ? 1.4 : 1.0;
-  const impactForce = baseImpactForce * mobileMultiplier;
+  // Keep impact force consistent across all devices for fair gameplay
+  const impactForce = baseImpactForce;
 
   // Apply deflection force to ball
   const deflectionPower = Math.min(impactForce, 15); // Cap the force to prevent crazy speeds
