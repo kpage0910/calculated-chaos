@@ -47,7 +47,7 @@ canvas {
   }
 
   canvas {
-    max-height: calc(100vh - 100px);
+    max-height: calc(100vh - 120px);
     width: 100vw;
     max-width: calc(100vw - 10px);
   }

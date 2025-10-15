@@ -12,22 +12,40 @@ function initializeCanvas() {
   const maxWidth = window.innerWidth - 20;
   const maxHeight = window.innerHeight - 80;
 
-  const scaleX = maxWidth / baseWidth;
-  const scaleY = maxHeight / baseHeight;
+  // Use smaller base dimensions on mobile for better performance
+  const actualBaseWidth = isMobile ? Math.min(800, maxWidth) : baseWidth;
+  const actualBaseHeight = isMobile ? Math.min(600, maxHeight) : baseHeight;
+
+  const scaleX = maxWidth / actualBaseWidth;
+  const scaleY = maxHeight / actualBaseHeight;
   gameScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond original size
 
-  canvas.width = baseWidth;
-  canvas.height = baseHeight;
-  canvas.style.width = baseWidth * gameScale + "px";
-  canvas.style.height = baseHeight * gameScale + "px";
+  canvas.width = actualBaseWidth;
+  canvas.height = actualBaseHeight;
+  canvas.style.width = actualBaseWidth * gameScale + "px";
+  canvas.style.height = actualBaseHeight * gameScale + "px";
 
   // Disable image smoothing for crisp pixel art
   ctx.imageSmoothingEnabled = false;
+  
+  console.log("Canvas initialized:", canvas.width, "x", canvas.height, "Scale:", gameScale, "Mobile:", isMobile);
 }
 
 // Handle window resize
 function handleResize() {
   initializeCanvas();
+  // Recalculate game constants based on new canvas size
+  WATER_LEVEL = canvas.height - 100;
+  seesawX = canvas.width / 2;
+  seesawY = WATER_LEVEL - 250;
+  seesawWidth = getObjects().seesaw.width;
+  seesawHeight = getObjects().seesaw.height;
+  
+  // Reposition ball if it's on the seesaw
+  if (ball.onSeesaw) {
+    ball.x = seesawX;
+    ball.y = seesawY - 50;
+  }
 }
 
 window.addEventListener("resize", handleResize);
@@ -38,8 +56,8 @@ window.addEventListener("orientationchange", () => {
 // Initialize on load
 initializeCanvas();
 
-// Game constants
-const WATER_LEVEL = canvas.height - 100;
+// Game constants (will be set after canvas initialization)
+let WATER_LEVEL = canvas.height - 100;
 let ANVIL_SPAWN_RATE = 180; // Will be adjusted for mobile
 const BALL_JUMP_POWER = -12;
 const AIR_JUMP_POWER = -8; // Weaker air jumps
@@ -55,6 +73,8 @@ const isMobile =
   ) ||
   (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) ||
   window.innerWidth <= 768; // Also consider small screens as mobile
+
+console.log("Mobile detection:", isMobile, "Screen size:", window.innerWidth + "x" + window.innerHeight);
 
 // Adjust game difficulty for mobile
 if (isMobile) {
@@ -108,10 +128,10 @@ function getObjects() {
 
 let seesawAngle = 0;
 let targetSeesawAngle = 0;
-const seesawX = canvas.width / 2;
-const seesawY = WATER_LEVEL - 250;
-const seesawWidth = OBJECTS.seesaw.width;
-const seesawHeight = OBJECTS.seesaw.height;
+let seesawX = canvas.width / 2;
+let seesawY = WATER_LEVEL - 250;
+let seesawWidth = OBJECTS.seesaw.width;
+let seesawHeight = OBJECTS.seesaw.height;
 
 // Ball properties (radius will be set after device detection)
 const ball = {
@@ -1817,60 +1837,65 @@ function drawSeesaw() {
 }
 
 function animate(currentTime = 0) {
-  // Handle timing for browser tab switching
-  const deltaTime = currentTime - lastTime;
-  lastTime = currentTime;
+  try {
+    // Handle timing for browser tab switching
+    const deltaTime = currentTime - lastTime;
+    lastTime = currentTime;
 
-  // Skip frame if too much time passed (tab was unfocused)
-  if (deltaTime > 100) {
+    // Skip frame if too much time passed (tab was unfocused)
+    if (deltaTime > 100) {
+      requestAnimationFrame(animate);
+      return;
+    }
+
+    // Initialize game start time on first frame
+    if (gameStartTime === 0 && !gameOver) {
+      gameStartTime = currentTime;
+    }
+
+    // Update survival timer (only when game is active)
+    if (!gameOver && !respawning && gameStartTime > 0) {
+      survivalTime = (currentTime - gameStartTime) / 1000; // Convert to seconds
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Don't update game logic if game is over
+    if (!gameOver) {
+      handleInput();
+      updateBall();
+      updateAnvils();
+      updateWaterPockets(); // Update water pocket system
+      updateSeesawPhysics(); // Update seesaw physics smoothly
+      updateSplash(); // Update splash particles
+    }
+
+    // Draw background elements first
+    drawSky();
+    drawSun();
+    drawClouds();
+    drawWater();
+    drawWaterPockets(); // Draw water pockets after water
+
+    // Draw game elements
+    drawSeesaw();
+    drawAnvils();
+    drawBall();
+    drawSplash(); // Draw splash effect
+    drawLives();
+    drawTimer(); // Draw survival timer
+
+    // Game over check
+    if (lives <= 0 && !gameOver) {
+      showGameOver();
+      return; // Stop the game loop
+    }
+
     requestAnimationFrame(animate);
-    return;
+  } catch (error) {
+    console.error("Animation error:", error);
+    requestAnimationFrame(animate);
   }
-
-  // Initialize game start time on first frame
-  if (gameStartTime === 0 && !gameOver) {
-    gameStartTime = currentTime;
-  }
-
-  // Update survival timer (only when game is active)
-  if (!gameOver && !respawning && gameStartTime > 0) {
-    survivalTime = (currentTime - gameStartTime) / 1000; // Convert to seconds
-  }
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Don't update game logic if game is over
-  if (!gameOver) {
-    handleInput();
-    updateBall();
-    updateAnvils();
-    updateWaterPockets(); // Update water pocket system
-    updateSeesawPhysics(); // Update seesaw physics smoothly
-    updateSplash(); // Update splash particles
-  }
-
-  // Draw background elements first
-  drawSky();
-  drawSun();
-  drawClouds();
-  drawWater();
-  drawWaterPockets(); // Draw water pockets after water
-
-  // Draw game elements
-  drawSeesaw();
-  drawAnvils();
-  drawBall();
-  drawSplash(); // Draw splash effect
-  drawLives();
-  drawTimer(); // Draw survival timer
-
-  // Game over check
-  if (lives <= 0 && !gameOver) {
-    showGameOver();
-    return; // Stop the game loop
-  }
-
-  requestAnimationFrame(animate);
 }
 
 animate();
