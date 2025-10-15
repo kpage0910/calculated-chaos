@@ -19,10 +19,16 @@ A physics-based browser game where you control a metallic ball on a dynamic sees
 
 ## Game Features
 
-- Physics-based seesaw that tilts with weight
-- Responsive design for desktop and mobile
-- 60fps smooth gameplay
-- No installation required - runs in any modern browser
+- **Physics-based seesaw** that tilts with weight distribution
+- **Multiple anvil types** - regular and big anvils with different impact forces
+- **Water geysers** - Rising water pockets that can boost your ball to safety
+- **Air jumps** - Perform up to 2 air jumps before needing to land
+- **Particle effects** - Dynamic splash effects for water and anvil impacts
+- **Lives system** - 3 lives with respawn mechanics
+- **Survival timer** - Track how long you can survive the chaos
+- **Mobile optimized** - Touch controls and responsive design
+- **Smooth 60fps gameplay** with advanced collision detection
+- **No installation required** - runs in any modern browser
 
 ## Files
 
