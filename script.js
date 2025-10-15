@@ -25,17 +25,35 @@ let baseHeight = 900;
 
 // Initialize canvas size and scaling
 function initializeCanvas() {
-  const maxWidth = window.innerWidth - 20;
-  const maxHeight = window.innerHeight - 100; // More space for UI elements
+  const maxWidth = window.innerWidth - (isMobile ? 10 : 20);
+  const maxHeight = window.innerHeight - (isMobile ? 60 : 100); // Less space needed on mobile
 
-  // Use smaller base dimensions on mobile for better performance
-  const actualBaseWidth = isMobile ? Math.min(600, maxWidth) : baseWidth;
-  const actualBaseHeight = isMobile ? Math.min(500, maxHeight) : baseHeight; // Increased height for mobile
+  // Use responsive base dimensions
+  let actualBaseWidth, actualBaseHeight;
+  
+  if (isMobile) {
+    // For mobile, use responsive dimensions based on screen size
+    const aspectRatio = 16 / 10; // Preferred game aspect ratio
+    const screenAspectRatio = maxWidth / maxHeight;
+    
+    if (screenAspectRatio > aspectRatio) {
+      // Screen is wider than preferred ratio - limit by height
+      actualBaseHeight = Math.min(500, maxHeight);
+      actualBaseWidth = actualBaseHeight * aspectRatio;
+    } else {
+      // Screen is taller than preferred ratio - limit by width
+      actualBaseWidth = Math.min(800, maxWidth);
+      actualBaseHeight = actualBaseWidth / aspectRatio;
+    }
+  } else {
+    actualBaseWidth = baseWidth;
+    actualBaseHeight = baseHeight;
+  }
 
   // Scale to fit available space
   const scaleX = maxWidth / actualBaseWidth;
   const scaleY = maxHeight / actualBaseHeight;
-  gameScale = Math.min(scaleX, scaleY, isMobile ? 1.2 : 1); // Allow slight upscaling on mobile
+  gameScale = Math.min(scaleX, scaleY, isMobile ? 1.5 : 1); // Allow more upscaling on mobile
 
   canvas.width = actualBaseWidth;
   canvas.height = actualBaseHeight;
@@ -63,14 +81,31 @@ function initializeCanvas() {
 function handleResize() {
   initializeCanvas();
   // Recalculate game constants based on new canvas size
-  WATER_LEVEL = canvas.height - (isMobile ? 60 : 100); // Adjust for mobile
+  WATER_LEVEL = canvas.height - (isMobile ? canvas.height * 0.12 : 100); // Responsive water level
   seesawX = canvas.width / 2;
-  seesawY = WATER_LEVEL - (isMobile ? 150 : 250); // Adjust seesaw position for mobile
+  seesawY = WATER_LEVEL - (isMobile ? canvas.height * 0.3 : 250); // Responsive seesaw position
+  
+  // Update object sizes for new canvas dimensions
+  if (isMobile) {
+    MOBILE_OBJECTS.ball.radius = Math.max(12, canvas.width * 0.02);
+    MOBILE_OBJECTS.anvil.width = Math.max(20, canvas.width * 0.03);
+    MOBILE_OBJECTS.anvil.height = Math.max(30, canvas.width * 0.04);
+    MOBILE_OBJECTS.bigAnvil.width = Math.max(35, canvas.width * 0.055);
+    MOBILE_OBJECTS.bigAnvil.height = Math.max(50, canvas.width * 0.075);
+    MOBILE_OBJECTS.seesaw.width = canvas.width * 0.85;
+    MOBILE_OBJECTS.seesaw.height = Math.max(20, canvas.height * 0.035);
+  }
+  
   seesawWidth = getObjects().seesaw.width;
   seesawHeight = getObjects().seesaw.height;
 
+  // Update ball radius if game is running
+  if (ball) {
+    ball.radius = getObjects().ball.radius;
+  }
+
   // Reposition ball if it's on the seesaw
-  if (ball.onSeesaw) {
+  if (ball && ball.onSeesaw) {
     ball.x = seesawX;
     ball.y = seesawY - 50;
   }
@@ -97,8 +132,16 @@ function checkOrientation() {
 
   if (isPortrait) {
     orientationPrompt.style.display = "flex";
+    landscapeReady = false;
+    gameStarted = false; // Stop game when in portrait
   } else {
     orientationPrompt.style.display = "none";
+    landscapeReady = true;
+    // Start game when rotating to landscape for the first time
+    if (!gameStarted && isMobile) {
+      gameStarted = true;
+      gameStartTime = Date.now(); // Initialize game start time
+    }
   }
 }
 
@@ -108,13 +151,23 @@ window.addEventListener("orientationchange", handleOrientationChange);
 // Initialize on load
 initializeCanvas();
 
+// Initialize game state based on device type
+if (!isMobile) {
+  // Desktop: start game immediately
+  gameStarted = true;
+  landscapeReady = true;
+} else {
+  // Mobile: wait for landscape orientation
+  checkOrientation();
+}
+
 // Check orientation on mobile devices
 if (isMobile) {
   checkOrientation();
 }
 
 // Game constants (will be set after canvas initialization)
-let WATER_LEVEL = canvas.height - (isMobile ? 60 : 100); // Adjust for mobile
+let WATER_LEVEL = canvas.height - (isMobile ? canvas.height * 0.12 : 100); // Responsive water level
 let ANVIL_SPAWN_RATE = 180; // Will be adjusted for mobile
 let BIG_ANVIL_SPAWN_RATE = 400; // Initialize this early
 const BALL_JUMP_POWER = -12;
@@ -163,10 +216,10 @@ const OBJECTS = {
 
 // Mobile object adjustments for consistent feel
 const MOBILE_OBJECTS = {
-  ball: { radius: 15, weight: 1 },
-  anvil: { width: 25, height: 35, weight: 10, spawnVelocity: 2.8 }, // Slightly faster on mobile
-  bigAnvil: { width: 45, height: 60, weight: 25, spawnVelocity: 3.3 }, // Slightly faster on mobile
-  seesaw: { width: canvas.width * 0.8, height: 25 }, // Slightly wider seesaw on mobile for easier gameplay
+  ball: { radius: Math.max(12, canvas.width * 0.02), weight: 1 }, // Responsive ball size
+  anvil: { width: Math.max(20, canvas.width * 0.03), height: Math.max(30, canvas.width * 0.04), weight: 10, spawnVelocity: 2.8 },
+  bigAnvil: { width: Math.max(35, canvas.width * 0.055), height: Math.max(50, canvas.width * 0.075), weight: 25, spawnVelocity: 3.3 },
+  seesaw: { width: canvas.width * 0.85, height: Math.max(20, canvas.height * 0.035) }, // More responsive seesaw
 };
 
 // Get appropriate object values based on device
@@ -178,7 +231,7 @@ function getObjects() {
 let seesawAngle = 0;
 let targetSeesawAngle = 0;
 let seesawX = canvas.width / 2;
-let seesawY = WATER_LEVEL - (isMobile ? 150 : 250); // Adjust for mobile
+let seesawY = WATER_LEVEL - (isMobile ? canvas.height * 0.3 : 250); // Responsive seesaw position
 let seesawWidth = OBJECTS.seesaw.width;
 let seesawHeight = OBJECTS.seesaw.height;
 
@@ -206,6 +259,8 @@ ball.radius = getObjects().ball.radius;
 let lives = 3;
 let respawning = false;
 let gameOver = false;
+let gameStarted = false; // New flag to control game start
+let landscapeReady = false; // Track if device is in landscape
 
 // Survival timer system
 let gameStartTime = 0;
@@ -235,8 +290,8 @@ const WATER_POCKET = {
 
 // Mobile water pocket adjustments for smaller screens
 const MOBILE_WATER_POCKET = {
-  width: 80, // Much smaller for mobile to fit better
-  maxHeight: 120,
+  width: Math.max(60, canvas.width * 0.15), // Responsive width
+  maxHeight: Math.max(100, canvas.height * 0.25), // Responsive height
   riseSpeed: 4,
   fallSpeed: 2,
   lifetime: 180,
@@ -1066,9 +1121,10 @@ function resetGame() {
   lives = 3;
   respawning = false;
 
-  // Reset survival timer
+  // Reset game start flags
   gameStartTime = 0;
   survivalTime = 0;
+  gameStarted = !isMobile || landscapeReady; // Start immediately on desktop, wait for landscape on mobile
 
   // Reset ball
   resetBallState(seesawX, seesawY - 50);
@@ -2017,20 +2073,21 @@ function animate(currentTime = 0) {
       return;
     }
 
-    // Initialize game start time on first frame
-    if (gameStartTime === 0 && !gameOver) {
+    // Initialize game start time on first frame (only when game should start)
+    if (gameStartTime === 0 && !gameOver && (!isMobile || landscapeReady)) {
       gameStartTime = currentTime;
+      gameStarted = true;
     }
 
-    // Update survival timer (only when game is active)
-    if (!gameOver && !respawning && gameStartTime > 0) {
+    // Update survival timer (only when game is active and started)
+    if (!gameOver && !respawning && gameStartTime > 0 && gameStarted) {
       survivalTime = (currentTime - gameStartTime) / 1000; // Convert to seconds
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Don't update game logic if game is over
-    if (!gameOver) {
+    // Only update game logic if game is started and not over
+    if (!gameOver && gameStarted) {
       handleInput();
       updateBall();
       updateAnvils();

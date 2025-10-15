@@ -147,6 +147,19 @@ canvas {
   line-height: 1.4;
 }
 
+.game-start-hint {
+  color: #90EE90 !important;
+  font-weight: bold;
+  font-size: 14px !important;
+  margin: 10px 0 20px 0 !important;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
 .rotate-icon {
   font-size: 48px;
   animation: rotate 2s ease-in-out infinite;
