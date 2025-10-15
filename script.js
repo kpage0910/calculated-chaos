@@ -41,8 +41,8 @@ function initializeCanvas() {
   canvas.height = actualBaseHeight;
 
   // Apply scaling for display
-  canvas.style.width = (actualBaseWidth * gameScale) + "px";
-  canvas.style.height = (actualBaseHeight * gameScale) + "px";
+  canvas.style.width = actualBaseWidth * gameScale + "px";
+  canvas.style.height = actualBaseHeight * gameScale + "px";
 
   // Disable image smoothing for crisp pixel art
   ctx.imageSmoothingEnabled = false;
