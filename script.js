@@ -222,7 +222,7 @@ const WATER_POCKET = {
 
 // Mobile water pocket adjustments for smaller screens
 const MOBILE_WATER_POCKET = {
-  width: 80, // Much smaller for mobile to fit better
+  width: 60, // Even smaller for mobile to avoid seesaw overlap
   maxHeight: 120,
   riseSpeed: 4,
   fallSpeed: 2,
@@ -712,7 +712,7 @@ function updateSplash() {
 function spawnWaterPocketOnSide(side) {
   // Calculate seesaw bounds to avoid spawning under it
   const seesawBounds = getSeesawBounds();
-  const seesawBuffer = isMobile ? 60 : 50; // Larger buffer on mobile to prevent overlap
+  const seesawBuffer = isMobile ? 30 : 50; // Smaller buffer on mobile
   const avoidLeft = seesawBounds.left - seesawBuffer;
   const avoidRight = seesawBounds.right + seesawBuffer;
 
@@ -725,30 +725,24 @@ function spawnWaterPocketOnSide(side) {
   const rightSpaceStart = avoidRight;
   const rightSpaceWidth = canvas.width - avoidRight - waterPocket.width / 2;
 
-  // Additional safety check - don't spawn if there's not enough room
-  const minRequiredSpace = waterPocket.width + 20; // Extra margin
-
-  if (side === "left" && leftSpaceWidth > minRequiredSpace) {
-    // Spawn on left side, but ensure it's well away from seesaw
-    const minX = waterPocket.width / 2;
-    const maxX = Math.max(minX, avoidLeft - waterPocket.width / 2);
-    if (maxX > minX) {
-      spawnX = minX + Math.random() * (maxX - minX);
-    } else {
-      return; // Not enough space, don't spawn
-    }
-  } else if (side === "right" && rightSpaceWidth > minRequiredSpace) {
-    // Spawn on right side, but ensure it's well away from seesaw
-    const minX = avoidRight + waterPocket.width / 2;
-    const maxX = canvas.width - waterPocket.width / 2;
-    if (maxX > minX) {
-      spawnX = minX + Math.random() * (maxX - minX);
-    } else {
-      return; // Not enough space, don't spawn
-    }
+  if (side === "left" && leftSpaceWidth > waterPocket.width) {
+    // Spawn on left side, fill most of the space
+    spawnX =
+      waterPocket.width / 2 +
+      Math.random() * (leftSpaceWidth - waterPocket.width / 2);
+  } else if (side === "right" && rightSpaceWidth > waterPocket.width) {
+    // Spawn on right side, fill most of the space
+    spawnX =
+      rightSpaceStart +
+      waterPocket.width / 2 +
+      Math.random() * (rightSpaceWidth - waterPocket.width / 2);
   } else {
-    // Not enough space on requested side, don't spawn
-    return;
+    // Fallback to edge spawning if not enough space
+    if (side === "left") {
+      spawnX = waterPocket.width / 2;
+    } else {
+      spawnX = canvas.width - waterPocket.width / 2;
+    }
   }
 
   waterPockets.push({
