@@ -150,9 +150,10 @@ canvas {
   display: none;
 }
 
-@media (pointer: coarse) {
+/* Show mobile controls on touch devices OR small screens */
+@media (pointer: coarse), (max-width: 768px) {
   .mobile-only {
-    display: block;
+    display: block !important;
   }
 }
 

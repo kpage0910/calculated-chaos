@@ -9,20 +9,26 @@ let baseHeight = 900;
 
 // Initialize canvas size and scaling
 function initializeCanvas() {
-  const maxWidth = window.innerWidth - 20;
-  const maxHeight = window.innerHeight - 80;
+  try {
+    const maxWidth = window.innerWidth - 20;
+    const maxHeight = window.innerHeight - 80;
 
-  const scaleX = maxWidth / baseWidth;
-  const scaleY = maxHeight / baseHeight;
-  gameScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond original size
+    const scaleX = maxWidth / baseWidth;
+    const scaleY = maxHeight / baseHeight;
+    gameScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond original size
 
-  canvas.width = baseWidth;
-  canvas.height = baseHeight;
-  canvas.style.width = baseWidth * gameScale + "px";
-  canvas.style.height = baseHeight * gameScale + "px";
+    canvas.width = baseWidth;
+    canvas.height = baseHeight;
+    canvas.style.width = baseWidth * gameScale + "px";
+    canvas.style.height = baseHeight * gameScale + "px";
 
-  // Disable image smoothing for crisp pixel art
-  ctx.imageSmoothingEnabled = false;
+    // Disable image smoothing for crisp pixel art
+    ctx.imageSmoothingEnabled = false;
+    
+    console.log("Canvas initialized:", canvas.width, "x", canvas.height, "scale:", gameScale);
+  } catch (error) {
+    console.error("Error initializing canvas:", error);
+  }
 }
 
 // Handle window resize
@@ -53,7 +59,10 @@ const isMobile =
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent
   ) ||
-  (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+  (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) ||
+  window.innerWidth <= 768; // Also consider small screens as mobile
+
+console.log("Mobile detection:", isMobile, "User agent:", navigator.userAgent, "Touch points:", navigator.maxTouchPoints, "Screen width:", window.innerWidth);
 
 // Adjust game difficulty for mobile
 if (isMobile) {
@@ -249,6 +258,8 @@ let mobileControls = {
 
 // Play Again button event listener and mobile controls
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("DOM loaded, initializing controls...");
+  
   const playAgainButton = document.getElementById("playAgainButton");
   playAgainButton.addEventListener("click", resetGame);
 
@@ -258,7 +269,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const jumpBtn = document.getElementById("jumpBtn");
   const downBtn = document.getElementById("downBtn");
 
+  console.log("Mobile control buttons found:", {
+    leftBtn: !!leftBtn,
+    rightBtn: !!rightBtn,
+    jumpBtn: !!jumpBtn,
+    downBtn: !!downBtn
+  });
+
   if (leftBtn && rightBtn && jumpBtn && downBtn) {
+    console.log("Initializing mobile controls...");
+    
     // Touch start events
     leftBtn.addEventListener("touchstart", (e) => {
       e.preventDefault();
@@ -313,6 +333,10 @@ document.addEventListener("DOMContentLoaded", () => {
     [leftBtn, rightBtn, jumpBtn, downBtn].forEach((btn) => {
       btn.addEventListener("contextmenu", (e) => e.preventDefault());
     });
+    
+    console.log("Mobile controls initialized successfully");
+  } else {
+    console.error("Some mobile control buttons not found!");
   }
 });
 
