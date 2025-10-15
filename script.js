@@ -2,6 +2,21 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// Detect if on mobile device (moved here to avoid hoisting issues)
+const isMobile =
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  ) ||
+  (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) ||
+  window.innerWidth <= 768; // Also consider small screens as mobile
+
+console.log(
+  "Mobile detection:",
+  isMobile,
+  "Screen size:",
+  window.innerWidth + "x" + window.innerHeight
+);
+
 // Game scaling variables
 let gameScale = 1;
 let baseWidth = 1500;
@@ -12,7 +27,7 @@ function initializeCanvas() {
   const maxWidth = window.innerWidth - 20;
   const maxHeight = window.innerHeight - 80;
 
-  // Use smaller base dimensions on mobile for better performance
+  // Use smaller base dimensions on mobile for better performance, keep desktop unchanged
   const actualBaseWidth = isMobile ? Math.min(800, maxWidth) : baseWidth;
   const actualBaseHeight = isMobile ? Math.min(600, maxHeight) : baseHeight;
 
@@ -27,8 +42,17 @@ function initializeCanvas() {
 
   // Disable image smoothing for crisp pixel art
   ctx.imageSmoothingEnabled = false;
-  
-  console.log("Canvas initialized:", canvas.width, "x", canvas.height, "Scale:", gameScale, "Mobile:", isMobile);
+
+  console.log(
+    "Canvas initialized:",
+    canvas.width,
+    "x",
+    canvas.height,
+    "Scale:",
+    gameScale,
+    "Mobile:",
+    isMobile
+  );
 }
 
 // Handle window resize
@@ -40,7 +64,7 @@ function handleResize() {
   seesawY = WATER_LEVEL - 250;
   seesawWidth = getObjects().seesaw.width;
   seesawHeight = getObjects().seesaw.height;
-  
+
   // Reposition ball if it's on the seesaw
   if (ball.onSeesaw) {
     ball.x = seesawX;
@@ -65,16 +89,6 @@ const SQUISH_DURATION = 60;
 const MAX_ANVILS_ON_SCREEN = 15;
 const MAX_ANVILS_ON_SEESAW = 8;
 const MAX_PARTICLES = 100;
-
-// Detect if on mobile device
-const isMobile =
-  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  ) ||
-  (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) ||
-  window.innerWidth <= 768; // Also consider small screens as mobile
-
-console.log("Mobile detection:", isMobile, "Screen size:", window.innerWidth + "x" + window.innerHeight);
 
 // Adjust game difficulty for mobile
 if (isMobile) {
