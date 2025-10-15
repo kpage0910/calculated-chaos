@@ -7,8 +7,9 @@ const isMobile =
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent
   ) ||
-  (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) ||
-  window.innerWidth <= 768; // Also consider small screens as mobile
+  (navigator.maxTouchPoints &&
+    navigator.maxTouchPoints > 2 &&
+    navigator.platform !== "MacIntel");
 
 console.log(
   "Mobile detection:",
@@ -27,16 +28,19 @@ function initializeCanvas() {
   const maxWidth = window.innerWidth - 20;
   const maxHeight = window.innerHeight - 80;
 
-  // Use smaller base dimensions on mobile for better performance, keep desktop unchanged
+  // Use smaller base dimensions on mobile for better performance
   const actualBaseWidth = isMobile ? Math.min(800, maxWidth) : baseWidth;
   const actualBaseHeight = isMobile ? Math.min(600, maxHeight) : baseHeight;
 
+  // For desktop, scale down only if needed, don't scale up
   const scaleX = maxWidth / actualBaseWidth;
   const scaleY = maxHeight / actualBaseHeight;
   gameScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond original size
 
   canvas.width = actualBaseWidth;
   canvas.height = actualBaseHeight;
+
+  // Apply scaling only for display, keeping internal resolution
   canvas.style.width = actualBaseWidth * gameScale + "px";
   canvas.style.height = actualBaseHeight * gameScale + "px";
 
@@ -284,6 +288,7 @@ let touchStartTime = null;
 canvas.addEventListener(
   "touchstart",
   (e) => {
+    if (!isMobile) return; // Only handle touch on actual mobile devices
     e.preventDefault();
     const touch = e.touches[0];
     const rect = canvas.getBoundingClientRect();
@@ -297,6 +302,7 @@ canvas.addEventListener(
 canvas.addEventListener(
   "touchend",
   (e) => {
+    if (!isMobile) return; // Only handle touch on actual mobile devices
     e.preventDefault();
     if (touchStartX === null || touchStartY === null) return;
 
@@ -350,6 +356,7 @@ canvas.addEventListener(
 canvas.addEventListener(
   "touchmove",
   (e) => {
+    if (!isMobile) return; // Only prevent default on actual mobile devices
     e.preventDefault();
   },
   { passive: false }
