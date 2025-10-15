@@ -42,6 +42,7 @@ initializeCanvas();
 const WATER_LEVEL = canvas.height - 100;
 let ANVIL_SPAWN_RATE = 180; // Will be adjusted for mobile
 const BALL_JUMP_POWER = -12;
+const AIR_JUMP_POWER = -8; // Weaker air jumps
 const SQUISH_DURATION = 60;
 const MAX_ANVILS_ON_SCREEN = 15;
 const MAX_ANVILS_ON_SEESAW = 8;
@@ -60,9 +61,9 @@ if (isMobile) {
 }
 
 const PHYSICS = {
-  gravity: 0.5,
+  gravity: 0.35, // Reduced from 0.5 for slower falling
   friction: 0.98,
-  moveSpeed: 0.3,
+  moveSpeed: 0.45, // Increased for stronger air control
   angleSmoothing: 0.08,
   torqueScale: 0.0001,
   maxAngle: 0.4,
@@ -70,7 +71,8 @@ const PHYSICS = {
 
 const OBJECTS = {
   ball: { radius: 15, weight: 1 },
-  anvil: { width: 25, height: 35, weight: 10, spawnVelocity: 3 },
+  anvil: { width: 25, height: 35, weight: 10, spawnVelocity: 2.5 }, // Reduced from 3
+  bigAnvil: { width: 45, height: 60, weight: 25, spawnVelocity: 3 }, // Reduced from 4
   seesaw: { width: canvas.width * 0.7, height: 25 },
 };
 
@@ -92,6 +94,10 @@ const ball = {
   isSquished: false,
   squishTimer: 0,
   squishAmount: 1.0,
+  canJump: true,
+  jumpPressed: false,
+  airJumps: 0,
+  maxAirJumps: 2, // Allow 2 air jumps before needing to land
 };
 
 // Lives system
@@ -99,11 +105,32 @@ let lives = 3;
 let respawning = false;
 let gameOver = false;
 
+// Survival timer system
+let gameStartTime = 0;
+let survivalTime = 0;
+
 // Anvils system
 let anvils = [];
 let anvilSpawnTimer = 0;
+let bigAnvilSpawnTimer = 0;
+const BIG_ANVIL_SPAWN_RATE = 400; // Spawn big anvils a bit more frequently for better gameplay
 
 let splash = { active: false, x: 0, y: 0, particles: [], timer: 0 };
+
+// Water pocket system
+let waterPockets = [];
+const WATER_POCKET_SPAWN_RATE = 300; // Every 5 seconds (300 frames at 60fps)
+let leftSideSpawnTimer = 0;
+let rightSideSpawnTimer = 0;
+
+const WATER_POCKET = {
+  width: 200, // Much wider - was 80
+  maxHeight: 200,
+  riseSpeed: 4,
+  fallSpeed: 2,
+  lifetime: 180, // How long they stay up (frames)
+  pushForce: -15, // Upward force when ball touches
+};
 
 // Game timing
 let lastTime = 0;
@@ -117,6 +144,26 @@ function drawRect(x, y, width, height, color) {
   ctx.fillRect(x, y, width, height);
 }
 
+function drawCircle(x, y, radius, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function createRadialGradient(x, y, radius, colorStops) {
+  const gradient = ctx.createRadialGradient(
+    x - radius * 0.3,
+    y - radius * 0.3,
+    0,
+    x,
+    y,
+    radius
+  );
+  colorStops.forEach((stop) => gradient.addColorStop(stop.offset, stop.color));
+  return gradient;
+}
+
 function drawMetallicBall(x, y, radius, squishAmount = 1.0) {
   ctx.save();
   if (squishAmount !== 1.0) {
@@ -126,23 +173,14 @@ function drawMetallicBall(x, y, radius, squishAmount = 1.0) {
   }
 
   // Metal ball base
-  ctx.fillStyle = "#4A4A4A";
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fill();
+  drawCircle(x, y, radius, "#4A4A4A");
 
   // Metal gradient effect
-  const gradient = ctx.createRadialGradient(
-    x - radius * 0.3,
-    y - radius * 0.3,
-    0,
-    x,
-    y,
-    radius
-  );
-  gradient.addColorStop(0, "#E0E0E0");
-  gradient.addColorStop(0.4, "#808080");
-  gradient.addColorStop(1, "#2A2A2A");
+  const gradient = createRadialGradient(x, y, radius, [
+    { offset: 0, color: "#E0E0E0" },
+    { offset: 0.4, color: "#808080" },
+    { offset: 1, color: "#2A2A2A" },
+  ]);
 
   ctx.fillStyle = gradient;
   ctx.beginPath();
@@ -150,17 +188,11 @@ function drawMetallicBall(x, y, radius, squishAmount = 1.0) {
   ctx.fill();
 
   // Bright metallic shine
-  ctx.fillStyle = "#FFFFFF";
-  ctx.beginPath();
-  ctx.arc(x - radius * 0.4, y - radius * 0.4, radius * 0.3, 0, Math.PI * 2);
-  ctx.fill();
+  drawCircle(x - radius * 0.4, y - radius * 0.4, radius * 0.3, "#FFFFFF");
 
   // Smaller highlight (only for normal sized balls)
   if (radius > 10) {
-    ctx.fillStyle = "#F0F0F0";
-    ctx.beginPath();
-    ctx.arc(x + radius * 0.2, y - radius * 0.2, radius * 0.15, 0, Math.PI * 2);
-    ctx.fill();
+    drawCircle(x + radius * 0.2, y - radius * 0.2, radius * 0.15, "#F0F0F0");
   }
 
   ctx.restore();
@@ -212,8 +244,15 @@ canvas.addEventListener(
 
     // Tap (short touch with minimal movement) = jump
     if (touchDuration < 200 && distance < 30) {
-      keys["ArrowUp"] = true;
-      setTimeout(() => (keys["ArrowUp"] = false), 100);
+      // Use same jump logic as keyboard
+      if (ball.onSeesaw && ball.canJump) {
+        ball.velocityY = BALL_JUMP_POWER;
+        ball.canJump = false;
+        ball.airJumps = 0;
+      } else if (!ball.onSeesaw && ball.airJumps < ball.maxAirJumps) {
+        ball.velocityY = AIR_JUMP_POWER;
+        ball.airJumps++;
+      }
     }
     // Swipe gestures
     else if (distance > 50) {
@@ -232,8 +271,15 @@ canvas.addEventListener(
           keys["ArrowDown"] = true;
           setTimeout(() => (keys["ArrowDown"] = false), 100);
         } else {
-          keys["ArrowUp"] = true;
-          setTimeout(() => (keys["ArrowUp"] = false), 100);
+          // Up swipe = jump (same logic as tap)
+          if (ball.onSeesaw && ball.canJump) {
+            ball.velocityY = BALL_JUMP_POWER;
+            ball.canJump = false;
+            ball.airJumps = 0;
+          } else if (!ball.onSeesaw && ball.airJumps < ball.maxAirJumps) {
+            ball.velocityY = AIR_JUMP_POWER;
+            ball.airJumps++;
+          }
         }
       }
     }
@@ -261,13 +307,27 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function handleInput() {
-  const airControlFactor = ball.onSeesaw ? 1.8 : 0.3; // Strong but balanced control on seesaw
+  const airControlFactor = ball.onSeesaw ? 1.8 : 0.8; // Strong air control for recovery
   const controls = {
     ArrowLeft: () => (ball.velocityX -= PHYSICS.moveSpeed * airControlFactor),
     ArrowRight: () => (ball.velocityX += PHYSICS.moveSpeed * airControlFactor),
     ArrowUp: () => {
-      if (ball.onSeesaw || ball.velocityY >= -2)
-        ball.velocityY = BALL_JUMP_POWER;
+      const currentlyPressed = keys["ArrowUp"];
+
+      if (currentlyPressed && !ball.jumpPressed) {
+        if (ball.onSeesaw && ball.canJump) {
+          // Regular jump from seesaw - full power
+          ball.velocityY = BALL_JUMP_POWER;
+          ball.canJump = false;
+          ball.airJumps = 0; // Reset air jumps when jumping from seesaw
+        } else if (!ball.onSeesaw && ball.airJumps < ball.maxAirJumps) {
+          // Air jump - weaker power, limited uses
+          ball.velocityY = AIR_JUMP_POWER;
+          ball.airJumps++;
+        }
+      }
+
+      ball.jumpPressed = currentlyPressed;
     },
     ArrowDown: () => {
       if (ball.onSeesaw) ball.velocityY += PHYSICS.moveSpeed;
@@ -277,6 +337,35 @@ function handleInput() {
   Object.entries(controls).forEach(([key, action]) => {
     if (keys[key]) action();
   });
+
+  // Handle jump key release
+  if (!keys["ArrowUp"]) {
+    ball.jumpPressed = false;
+  }
+}
+
+// Physics helper functions
+function clampVelocity(velocity, min, max) {
+  return Math.max(min, Math.min(max, velocity));
+}
+
+function applyBoundaryCollision(obj, bounds, restitution = 0.7) {
+  if (obj.x < bounds.left) {
+    obj.x = bounds.left;
+    obj.velocityX *= -restitution;
+  }
+  if (obj.x > bounds.right) {
+    obj.x = bounds.right;
+    obj.velocityX *= -restitution;
+  }
+  if (obj.y < bounds.top) {
+    obj.y = bounds.top;
+    obj.velocityY *= -restitution;
+  }
+  if (obj.y > bounds.bottom) {
+    obj.y = bounds.bottom;
+    obj.velocityY *= -restitution;
+  }
 }
 
 function updateBall() {
@@ -286,6 +375,17 @@ function updateBall() {
     if (--ball.squishTimer <= 0) {
       ball.isSquished = false;
       ball.squishAmount = 1.0;
+    } else {
+      // Keep the squished ball on the seesaw surface if it was squished there
+      if (ball.onSeesaw) {
+        const bounds = getSeesawBounds();
+        if (ball.x >= bounds.left && ball.x <= bounds.right) {
+          const distanceFromCenter = ball.x - seesawX;
+          const seesawHeightAtBallX =
+            bounds.top + distanceFromCenter * Math.tan(seesawAngle);
+          ball.y = seesawHeightAtBallX - ball.radius;
+        }
+      }
     }
     return;
   }
@@ -293,35 +393,33 @@ function updateBall() {
   if (!ball.onSeesaw) ball.velocityY += PHYSICS.gravity;
 
   // Clamp velocities to prevent clipping through objects
-  ball.velocityX = Math.max(-15, Math.min(15, ball.velocityX));
-  ball.velocityY = Math.max(-20, Math.min(20, ball.velocityY));
+  ball.velocityX = clampVelocity(ball.velocityX, -15, 15);
+  ball.velocityY = clampVelocity(ball.velocityY, -20, 20);
 
   ball.x += ball.velocityX;
   ball.y += ball.velocityY;
-  ball.velocityX *= PHYSICS.friction;
+
+  // Apply different friction based on whether ball is on seesaw or in air
+  if (ball.onSeesaw) {
+    ball.velocityX *= PHYSICS.friction;
+  } else {
+    // Less air resistance when not on seesaw for better control
+    ball.velocityX *= 0.99;
+  }
 
   // Boundary checks
-  if (ball.x < ball.radius) {
-    ball.x = ball.radius;
-    ball.velocityX *= -0.7;
-  }
-  if (ball.x > canvas.width - ball.radius) {
-    ball.x = canvas.width - ball.radius;
-    ball.velocityX *= -0.7;
-  }
-  if (ball.y < ball.radius) {
-    ball.y = ball.radius;
-    ball.velocityY *= -0.7;
-  }
+  const ballBounds = {
+    left: ball.radius,
+    right: canvas.width - ball.radius,
+    top: ball.radius,
+    bottom: canvas.height - ball.radius,
+  };
+  applyBoundaryCollision(ball, ballBounds);
 
   if (ball.y + ball.radius >= WATER_LEVEL) {
     createSplash(ball.x, WATER_LEVEL, "ball");
     ballFellInWater();
     return;
-  }
-  if (ball.y > canvas.height - ball.radius) {
-    ball.y = canvas.height - ball.radius;
-    ball.velocityY *= -0.7;
   }
 
   // Emergency reset if ball gets stuck outside playable area
@@ -353,10 +451,68 @@ function squishBall() {
   ball.velocityX = 0;
   ball.velocityY = 0;
 
+  // Keep track of whether ball was on seesaw when squished
+  // Don't change ball.onSeesaw state - let it maintain its current state
+  // so the position updates can keep it on the seesaw surface
+
   // After squish animation, lose life and respawn
   setTimeout(() => {
     ballFellInWater();
   }, 1000);
+}
+
+// Particle system helpers
+function createParticle(x, y, angle, speed, upwardBias, size, life, type) {
+  return {
+    x,
+    y,
+    velocityX: Math.cos(angle) * speed,
+    velocityY: Math.sin(angle) * speed - Math.random() * upwardBias,
+    size: size + Math.random() * 3,
+    life: life + Math.random() * 20,
+    type,
+  };
+}
+
+function generateSplashParticles(x, y, config, type) {
+  const particles = [];
+
+  // Main particles
+  for (let i = 0; i < config.count; i++) {
+    const angle = (i / config.count) * Math.PI * 2;
+    const speed = config.speed + Math.random();
+    particles.push(
+      createParticle(
+        x,
+        y,
+        angle,
+        speed,
+        config.upwardBias,
+        config.size,
+        config.life,
+        type
+      )
+    );
+  }
+
+  // Extra big droplets for anvil splashes
+  if (type === "anvil") {
+    for (let i = 0; i < 5; i++) {
+      const angle = Math.random() * Math.PI - Math.PI / 2;
+      const speed = 6 + Math.random() * config.impactForce;
+      particles.push({
+        x,
+        y,
+        velocityX: Math.cos(angle) * speed,
+        velocityY: Math.sin(angle) * speed - (3 + config.impactForce * 0.8),
+        size: 6 + Math.random() * 4,
+        life: 50 + Math.random() * 30,
+        type,
+      });
+    }
+  }
+
+  return particles;
 }
 
 function createSplash(x, y, type = "ball", impactForce = 1) {
@@ -380,6 +536,7 @@ function createSplash(x, y, type = "ball", impactForce = 1) {
           upwardBias: 2 + impactForce * 0.5,
           size: 4 + impactForce * 0.3,
           life: 40 + impactForce * 3,
+          impactForce,
         }
       : {
           count: 12,
@@ -387,46 +544,199 @@ function createSplash(x, y, type = "ball", impactForce = 1) {
           upwardBias: 3,
           size: 3,
           life: 30,
+          impactForce: 0,
         };
 
-  // Main particles
-  for (let i = 0; i < config.count; i++) {
-    const angle = (i / config.count) * Math.PI * 2;
-    splash.particles.push({
-      x,
-      y,
-      velocityX: Math.cos(angle) * (config.speed + Math.random()),
-      velocityY:
-        Math.sin(angle) * (config.speed + Math.random()) -
-        Math.random() * config.upwardBias,
-      size: config.size + Math.random() * 3,
-      life: config.life + Math.random() * 20,
-      type,
-    });
-  }
-
-  // Extra big droplets for anvil splashes
-  if (type === "anvil") {
-    for (let i = 0; i < 5; i++) {
-      const angle = Math.random() * Math.PI - Math.PI / 2;
-      const speed = 6 + Math.random() * impactForce;
-      splash.particles.push({
-        x,
-        y,
-        velocityX: Math.cos(angle) * speed,
-        velocityY: Math.sin(angle) * speed - (3 + impactForce * 0.8),
-        size: 6 + Math.random() * 4,
-        life: 50 + Math.random() * 30,
-        type,
-      });
-    }
-  }
+  const newParticles = generateSplashParticles(x, y, config, type);
+  splash.particles.push(...newParticles);
 }
 
 function updateSplash() {
   if (!splash.active) return;
   if (--splash.timer <= 0) splash.active = false;
   updateParticles(splash.particles, 0.2);
+}
+
+function spawnWaterPocketOnSide(side) {
+  // Calculate seesaw bounds to avoid spawning under it
+  const seesawBounds = getSeesawBounds();
+  const seesawBuffer = 50; // Extra space around seesaw to avoid
+  const avoidLeft = seesawBounds.left - seesawBuffer;
+  const avoidRight = seesawBounds.right + seesawBuffer;
+
+  let spawnX;
+
+  // Calculate available space on each side
+  const leftSpaceWidth = avoidLeft - WATER_POCKET.width / 2;
+  const rightSpaceStart = avoidRight;
+  const rightSpaceWidth = canvas.width - avoidRight - WATER_POCKET.width / 2;
+
+  if (side === "left" && leftSpaceWidth > WATER_POCKET.width) {
+    // Spawn on left side, fill most of the space
+    spawnX =
+      WATER_POCKET.width / 2 +
+      Math.random() * (leftSpaceWidth - WATER_POCKET.width / 2);
+  } else if (side === "right" && rightSpaceWidth > WATER_POCKET.width) {
+    // Spawn on right side, fill most of the space
+    spawnX =
+      rightSpaceStart +
+      WATER_POCKET.width / 2 +
+      Math.random() * (rightSpaceWidth - WATER_POCKET.width / 2);
+  } else {
+    // Fallback to edge spawning if not enough space
+    if (side === "left") {
+      spawnX = WATER_POCKET.width / 2;
+    } else {
+      spawnX = canvas.width - WATER_POCKET.width / 2;
+    }
+  }
+
+  waterPockets.push({
+    x: spawnX,
+    y: WATER_LEVEL,
+    height: 0,
+    phase: "rising", // 'rising', 'active', 'falling'
+    timer: 0,
+    maxHeight: WATER_POCKET.maxHeight * (0.7 + Math.random() * 0.6), // Random height variation
+    particles: [],
+    side: side, // Track which side this geyser is on
+  });
+}
+
+function updateWaterPockets() {
+  // Spawn geysers on left side every 5 seconds
+  if (++leftSideSpawnTimer >= WATER_POCKET_SPAWN_RATE) {
+    // Only spawn if there isn't already an active geyser on the left side
+    const leftSideActive = waterPockets.some(
+      (pocket) => pocket.side === "left" && pocket.height > 0
+    );
+    if (!leftSideActive) {
+      spawnWaterPocketOnSide("left");
+    }
+    leftSideSpawnTimer = 0;
+  }
+
+  // Spawn geysers on right side every 5 seconds (offset by 2.5 seconds)
+  if (++rightSideSpawnTimer >= WATER_POCKET_SPAWN_RATE) {
+    // Only spawn if there isn't already an active geyser on the right side
+    const rightSideActive = waterPockets.some(
+      (pocket) => pocket.side === "right" && pocket.height > 0
+    );
+    if (!rightSideActive) {
+      spawnWaterPocketOnSide("right");
+    }
+    rightSideSpawnTimer = 0;
+  }
+
+  // Update existing pockets
+  for (let i = waterPockets.length - 1; i >= 0; i--) {
+    const pocket = waterPockets[i];
+    pocket.timer++;
+
+    switch (pocket.phase) {
+      case "rising":
+        pocket.height += WATER_POCKET.riseSpeed;
+        if (pocket.height >= pocket.maxHeight) {
+          pocket.height = pocket.maxHeight;
+          pocket.phase = "active";
+          pocket.timer = 0;
+        }
+        break;
+
+      case "active":
+        // Stay at full height for a while
+        if (pocket.timer >= WATER_POCKET.lifetime) {
+          pocket.phase = "falling";
+          pocket.timer = 0;
+        }
+        break;
+
+      case "falling":
+        pocket.height -= WATER_POCKET.fallSpeed;
+        if (pocket.height <= 0) {
+          waterPockets.splice(i, 1);
+          continue;
+        }
+        break;
+    }
+
+    // Check collision with ball
+    checkWaterPocketCollision(pocket);
+
+    // Update water spray particles
+    updateWaterPocketParticles(pocket);
+  }
+}
+
+function checkWaterPocketCollision(pocket) {
+  if (pocket.height <= 0) return;
+
+  const pocketTop = WATER_LEVEL - pocket.height;
+  const pocketLeft = pocket.x - WATER_POCKET.width / 2;
+  const pocketRight = pocket.x + WATER_POCKET.width / 2;
+
+  // Check if ball is touching the water pocket
+  if (
+    ball.x >= pocketLeft &&
+    ball.x <= pocketRight &&
+    ball.y + ball.radius >= pocketTop &&
+    ball.y - ball.radius <= WATER_LEVEL
+  ) {
+    // Launch the ball upward
+    ball.velocityY = WATER_POCKET.pushForce;
+    ball.y = pocketTop - ball.radius; // Position ball on top of geyser
+
+    // Add some horizontal movement toward seesaw center for better gameplay
+    const directionToSeesaw = seesawX - ball.x;
+    const horizontalHelp = Math.sign(directionToSeesaw) * 3;
+    ball.velocityX += horizontalHelp;
+
+    // Reset air jumps when rescued by water pocket
+    ball.airJumps = 0;
+    ball.onSeesaw = false;
+
+    // Create splash effect at rescue point
+    createSplash(ball.x, pocketTop, "ball");
+
+    // Add extra particles to the pocket for visual feedback
+    createWaterPocketParticles(pocket);
+  }
+}
+
+function createWaterPocketParticles(pocket) {
+  // Add spray particles when pocket is active
+  for (let i = 0; i < 8; i++) {
+    const angle = Math.PI / 3 + (Math.random() - 0.5) * (Math.PI / 2); // Spray upward
+    const speed = 3 + Math.random() * 4;
+
+    pocket.particles.push({
+      x: pocket.x + (Math.random() - 0.5) * WATER_POCKET.width * 0.8,
+      y: WATER_LEVEL - pocket.height,
+      velocityX: Math.cos(angle) * speed,
+      velocityY: Math.sin(angle) * speed,
+      size: 2 + Math.random() * 3,
+      life: 30 + Math.random() * 20,
+      type: "geyser",
+    });
+  }
+}
+
+function updateWaterPocketParticles(pocket) {
+  // Add new particles during rising and active phases
+  if (
+    (pocket.phase === "rising" || pocket.phase === "active") &&
+    Math.random() < 0.3
+  ) {
+    createWaterPocketParticles(pocket);
+  }
+
+  // Update existing particles
+  updateParticles(pocket.particles, 0.15);
+
+  // Limit particle count to prevent performance issues
+  if (pocket.particles.length > 50) {
+    pocket.particles.splice(0, pocket.particles.length - 50);
+  }
 }
 
 function drawSplash() {
@@ -437,46 +747,102 @@ function drawSplash() {
     const alpha = particle.life / maxLife; // Fade out over time
 
     // Different colors for different splash types
-    let baseColor, highlightAlpha;
-    if (particle.type === "anvil") {
-      baseColor = `rgba(70, 130, 180, ${alpha})`; // Darker blue for anvil splash
-      highlightAlpha = alpha * 0.7; // More prominent highlight
-    } else {
-      baseColor = `rgba(135, 206, 235, ${alpha})`; // Light blue for ball splash
-      highlightAlpha = alpha * 0.6;
-    }
+    const colorConfig =
+      particle.type === "anvil"
+        ? { base: `rgba(70, 130, 180, ${alpha})`, highlightAlpha: alpha * 0.7 }
+        : {
+            base: `rgba(135, 206, 235, ${alpha})`,
+            highlightAlpha: alpha * 0.6,
+          };
 
-    ctx.fillStyle = baseColor;
-    ctx.beginPath();
-    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-    ctx.fill();
+    drawCircle(particle.x, particle.y, particle.size, colorConfig.base);
 
     // Add white highlight for water droplet effect
-    ctx.fillStyle = `rgba(255, 255, 255, ${highlightAlpha})`;
-    ctx.beginPath();
-    ctx.arc(
+    drawCircle(
       particle.x - particle.size * 0.3,
       particle.y - particle.size * 0.3,
       particle.size * 0.4,
-      0,
-      Math.PI * 2
+      `rgba(255, 255, 255, ${colorConfig.highlightAlpha})`
     );
-    ctx.fill();
+  });
+}
+
+function drawWaterPockets() {
+  waterPockets.forEach((pocket) => {
+    if (pocket.height <= 0) return;
+
+    const pocketTop = WATER_LEVEL - pocket.height;
+    const pocketLeft = pocket.x - WATER_POCKET.width / 2;
+    const pocketRight = pocket.x + WATER_POCKET.width / 2;
+
+    // Draw water column with gradient
+    const gradient = ctx.createLinearGradient(0, pocketTop, 0, WATER_LEVEL);
+    gradient.addColorStop(0, "#87CEEB"); // Light blue at top
+    gradient.addColorStop(0.5, "#4A90E2"); // Medium blue
+    gradient.addColorStop(1, "#2E6AB8"); // Darker blue at bottom
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(pocketLeft, pocketTop, WATER_POCKET.width, pocket.height);
+
+    // Add white foam at the top
+    if (pocket.phase === "rising" || pocket.phase === "active") {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+      ctx.fillRect(pocketLeft, pocketTop, WATER_POCKET.width, 8);
+
+      // Add some bubbles at the top
+      for (let i = 0; i < 5; i++) {
+        const bubbleX = pocketLeft + Math.random() * WATER_POCKET.width;
+        const bubbleY = pocketTop + Math.random() * 15;
+        drawCircle(
+          bubbleX,
+          bubbleY,
+          2 + Math.random() * 3,
+          "rgba(255, 255, 255, 0.6)"
+        );
+      }
+    }
+
+    // Draw spray particles
+    pocket.particles.forEach((particle) => {
+      const alpha = particle.life / 50;
+      drawCircle(
+        particle.x,
+        particle.y,
+        particle.size,
+        `rgba(135, 206, 235, ${alpha})`
+      );
+
+      // Add white highlight
+      drawCircle(
+        particle.x - particle.size * 0.3,
+        particle.y - particle.size * 0.3,
+        particle.size * 0.4,
+        `rgba(255, 255, 255, ${alpha * 0.8})`
+      );
+    });
+  });
+}
+
+// Ball state management
+function resetBallState(x, y, velocityX = 0, velocityY = 0) {
+  Object.assign(ball, {
+    x,
+    y,
+    velocityX,
+    velocityY,
+    onSeesaw: false,
+    isSquished: false,
+    squishTimer: 0,
+    squishAmount: 1.0,
+    canJump: true,
+    jumpPressed: false,
+    airJumps: 0,
   });
 }
 
 function respawnBall() {
   respawning = true;
-  Object.assign(ball, {
-    x: seesawX,
-    y: 50,
-    velocityX: 0,
-    velocityY: 2,
-    onSeesaw: false,
-    isSquished: false,
-    squishTimer: 0,
-    squishAmount: 1.0,
-  });
+  resetBallState(seesawX, 50, 0, 2);
 
   // Prevent ball from immediately colliding with anvils during respawn
   setTimeout(() => (respawning = false), 500);
@@ -488,22 +854,23 @@ function resetGame() {
   lives = 3;
   respawning = false;
 
+  // Reset survival timer
+  gameStartTime = 0;
+  survivalTime = 0;
+
   // Reset ball
-  Object.assign(ball, {
-    x: seesawX,
-    y: seesawY - 50,
-    radius: OBJECTS.ball.radius,
-    velocityX: 0,
-    velocityY: 0,
-    onSeesaw: false,
-    isSquished: false,
-    squishTimer: 0,
-    squishAmount: 1.0,
-  });
+  resetBallState(seesawX, seesawY - 50);
+  ball.radius = OBJECTS.ball.radius;
 
   // Clear anvils
   anvils = [];
   anvilSpawnTimer = 0;
+  bigAnvilSpawnTimer = 0;
+
+  // Clear water pockets
+  waterPockets = [];
+  leftSideSpawnTimer = 0;
+  rightSideSpawnTimer = 150; // Offset right side by 2.5 seconds initially
 
   // Reset seesaw
   seesawAngle = 0;
@@ -522,6 +889,19 @@ function resetGame() {
 
 function showGameOver() {
   gameOver = true;
+
+  // Format final survival time
+  const minutes = Math.floor(survivalTime / 60);
+  const seconds = Math.floor(survivalTime % 60);
+  const timeString = `${minutes.toString().padStart(2, "0")}:${seconds
+    .toString()
+    .padStart(2, "0")}`;
+
+  // Update the survival time display
+  const survivalTimeDisplay = document.getElementById("survivalTimeDisplay");
+  survivalTimeDisplay.textContent = `You survived for: ${timeString}`;
+
+  // Show the game over screen
   const gameOverScreen = document.getElementById("gameOverScreen");
   gameOverScreen.classList.remove("game-over-hidden");
 }
@@ -540,15 +920,75 @@ function spawnAnvil() {
     slideDirection: 0,
     fallingOff: false,
     hitWater: false,
+    isBig: false,
+  });
+}
+
+function spawnBigAnvil() {
+  // Don't spawn if too many anvils already exist
+  if (anvils.length >= MAX_ANVILS_ON_SCREEN) return;
+
+  anvils.push({
+    x: Math.random() * canvas.width,
+    y: -60,
+    width: OBJECTS.bigAnvil.width,
+    height: OBJECTS.bigAnvil.height,
+    velocityY: OBJECTS.bigAnvil.spawnVelocity,
+    crushedBall: false,
+    hitSeesaw: false,
+    slideDirection: 0,
+    fallingOff: false,
+    hitWater: false,
+    isBig: true,
+    impactForce: 0, // Will be calculated when it hits the seesaw
   });
 }
 
 // Helper functions
 function checkRectCircleCollision(rect, circle) {
-  return (
-    Math.abs(rect.x - circle.x) < rect.width / 2 + circle.radius &&
-    Math.abs(rect.y - circle.y) < rect.height / 2 + circle.radius
-  );
+  // More accurate rectangle-circle collision detection
+  const halfWidth = rect.width / 2;
+  const halfHeight = rect.height / 2;
+
+  // Calculate distances
+  const dx = Math.abs(circle.x - rect.x);
+  const dy = Math.abs(circle.y - rect.y);
+
+  // Quick rejection test
+  if (dx > halfWidth + circle.radius || dy > halfHeight + circle.radius) {
+    return false;
+  }
+
+  // Easy cases - circle center is inside rectangle bounds
+  if (dx <= halfWidth || dy <= halfHeight) {
+    return true;
+  }
+
+  // Hard case - check corner collision
+  const cornerDistSq =
+    Math.pow(dx - halfWidth, 2) + Math.pow(dy - halfHeight, 2);
+  return cornerDistSq <= Math.pow(circle.radius, 2);
+}
+
+function checkSweptCollisionWithSeesaw(anvil, bounds, velocity) {
+  // Perform multiple collision checks along the movement path
+  // This prevents fast-moving anvils from passing through the seesaw
+  const steps = Math.max(3, Math.ceil(Math.abs(velocity) / 3)); // More steps for faster anvils
+  const currentY = anvil.y;
+  const currentBottom = anvil.y + anvil.height / 2;
+
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps; // Interpolation factor (0 to 1)
+    const testY = currentY + velocity * t;
+    const testBottom = testY + anvil.height / 2;
+
+    // Check if at any point along the path, the anvil crosses the seesaw
+    if (currentBottom <= bounds.top && testBottom >= bounds.top) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function getSeesawBounds() {
@@ -579,9 +1019,24 @@ function updateAnvils() {
     anvilSpawnTimer = 0;
   }
 
+  // Spawn big anvils less frequently
+  if (++bigAnvilSpawnTimer >= BIG_ANVIL_SPAWN_RATE) {
+    spawnBigAnvil();
+    bigAnvilSpawnTimer = 0;
+  }
+
   for (let i = anvils.length - 1; i >= 0; i--) {
     const anvil = anvils[i];
-    updateAnvilPhysics(anvil);
+
+    // Add gravity to falling anvils, but cap the velocity
+    if (!anvil.hitSeesaw || anvil.fallingOff) {
+      anvil.velocityY += 0.3; // Reduced from 0.4 for slower acceleration
+      // Cap velocity to prevent pass-through - this is critical!
+      const maxFallSpeed = anvil.isBig ? 10 : 8; // Reduced max speeds
+      anvil.velocityY = Math.min(anvil.velocityY, maxFallSpeed);
+    }
+
+    updateAnvilPhysics(anvil); // This now handles collision detection internally
     updateAnvilBallCollision(anvil);
     updateAnvilSeesawInteraction(anvil, i);
 
@@ -590,35 +1045,188 @@ function updateAnvils() {
 }
 
 function updateAnvilPhysics(anvil) {
+  // Store the previous position before any movement
+  const prevY = anvil.y;
+  const prevBottom = anvil.y + anvil.height / 2;
+
+  // Cap anvil velocity to prevent pass-through issues
+  const maxVelocity = 12; // Further reduced for better collision detection
+  anvil.velocityY = Math.min(anvil.velocityY, maxVelocity);
+
+  // Check for seesaw collision BEFORE moving the anvil
+  const bounds = getSeesawBounds();
+  const isOverSeesaw = anvil.x >= bounds.left && anvil.x <= bounds.right;
+
+  if (isOverSeesaw && !anvil.hitSeesaw && !anvil.fallingOff) {
+    // Improved collision detection using swept collision
+    // Check if anvil is approaching the seesaw from above
+    const isApproachingFromAbove = prevBottom <= bounds.top + anvil.height;
+
+    // Calculate where the anvil will be after movement
+    const newY = anvil.y + anvil.velocityY;
+    const newBottom = newY + anvil.height / 2;
+
+    // Multiple collision checks to prevent pass-through:
+    // 1. Traditional frame-based check
+    const willCrossSeesaw = prevBottom <= bounds.top && newBottom >= bounds.top;
+
+    // 2. Check if anvil is already very close to seesaw
+    const isAlreadyAtSeesaw = prevBottom >= bounds.top - 3;
+
+    // 3. Swept collision - check intermediate positions
+    const sweptCollision = checkSweptCollisionWithSeesaw(
+      anvil,
+      bounds,
+      anvil.velocityY
+    );
+
+    // 4. Safety check - if anvil would end up below seesaw surface, it must have hit
+    const wouldPassThrough =
+      newBottom > bounds.top + 5 && prevBottom <= bounds.top + 5;
+
+    if (
+      willCrossSeesaw ||
+      isAlreadyAtSeesaw ||
+      sweptCollision ||
+      wouldPassThrough
+    ) {
+      // Stop the anvil exactly at the seesaw surface
+      anvil.y = bounds.top - anvil.height / 2;
+      anvil.velocityY = 0;
+      landAnvilOnSeesaw(anvil, bounds);
+      return; // Don't move the anvil further this frame
+    }
+  }
+
+  // If no seesaw collision, move normally
   anvil.y += anvil.velocityY;
   if (anvil.fallingOff) anvil.velocityY += 0.3;
 
+  // Water collision check
   if (anvil.y + anvil.height / 2 >= WATER_LEVEL && !anvil.hitWater) {
     anvil.hitWater = true;
-    createSplash(anvil.x, WATER_LEVEL, "anvil", Math.abs(anvil.velocityY) + 3);
+    const impactMagnitude = Math.abs(anvil.velocityY) + (anvil.isBig ? 6 : 3);
+    createSplash(anvil.x, WATER_LEVEL, "anvil", impactMagnitude);
   }
 }
 
 function updateAnvilBallCollision(anvil) {
   if (anvil.crushedBall || respawning) return;
 
-  if (
-    checkRectCircleCollision(anvil, {
-      x: ball.x,
-      y: ball.y,
-      radius: ball.radius,
-    })
-  ) {
+  // Enhanced collision detection to prevent pass-through
+  const ballNextX = ball.x + ball.velocityX;
+  const ballNextY = ball.y + ball.velocityY;
+
+  // Check both current position and predicted next position
+  const currentCollision = checkRectCircleCollision(anvil, {
+    x: ball.x,
+    y: ball.y,
+    radius: ball.radius,
+  });
+
+  const futureCollision = checkRectCircleCollision(anvil, {
+    x: ballNextX,
+    y: ballNextY,
+    radius: ball.radius,
+  });
+
+  if (currentCollision || futureCollision) {
     if (!anvil.hitSeesaw || anvil.fallingOff) {
-      // Anvil is falling or not on seesaw - crush the ball
+      // Anvil is falling or not on seesaw - deflect the ball realistically
       anvil.crushedBall = true;
-      if (ball.onSeesaw || ball.y >= canvas.height - 150) squishBall();
-      else ballFellInWater();
+
+      // Only crush the ball if it's already on the ground/seesaw (realistic crushing scenario)
+      if (ball.onSeesaw || ball.y >= canvas.height - 150) {
+        squishBall();
+      } else {
+        // Ball is mid-air - deflect it based on anvil impact
+        handleMidAirAnvilCollision(anvil);
+      }
     } else {
       // Anvil is on seesaw - handle interaction but don't let ball get stuck
-      handleBallAnvilInteraction(anvil);
+      // Big anvils are more aggressive when interacting with the ball
+      if (anvil.isBig) {
+        handleBigAnvilBallInteraction(anvil);
+      } else {
+        handleBallAnvilInteraction(anvil);
+      }
     }
   }
+}
+
+function handleBigAnvilBallInteraction(anvil) {
+  // Big anvils push the ball more forcefully
+  if (ball.y < anvil.y - anvil.height / 2 && ball.velocityY >= 0) {
+    ball.y = anvil.y - anvil.height / 2 - ball.radius;
+    ball.velocityY = 0;
+  } else if (Math.abs(ball.y - anvil.y) < anvil.height / 2 + ball.radius / 2) {
+    // Push ball away from sides of big anvil with more force
+    const pushDirection = ball.x < anvil.x ? -1 : 1;
+    ball.x = anvil.x + pushDirection * (anvil.width / 2 + ball.radius + 5);
+    ball.velocityX = pushDirection * 4; // Stronger push for big anvils
+  }
+}
+
+function handleMidAirAnvilCollision(anvil) {
+  // Calculate collision vectors
+  const dx = ball.x - anvil.x;
+  const dy = ball.y - anvil.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  if (distance === 0) {
+    // Handle edge case where ball and anvil are at same position
+    ball.x += ball.radius + 5; // Move ball away
+    return;
+  }
+
+  // Normalize collision direction
+  const normalX = dx / distance;
+  const normalY = dy / distance;
+
+  // Calculate impact force based on anvil properties and velocity
+  const anvilMass = anvil.isBig
+    ? OBJECTS.bigAnvil.weight
+    : OBJECTS.anvil.weight;
+  const impactForce = Math.abs(anvil.velocityY) * anvilMass * 0.3;
+
+  // Apply deflection force to ball
+  const deflectionPower = Math.min(impactForce, 15); // Cap the force to prevent crazy speeds
+
+  // Immediate separation to prevent pass-through
+  const anvilSize = Math.max(anvil.width, anvil.height) / 2;
+  const minSeparation = ball.radius + anvilSize + 8; // Extra padding to ensure no overlap
+
+  if (distance < minSeparation) {
+    // Force immediate separation
+    ball.x = anvil.x + normalX * minSeparation;
+    ball.y = anvil.y + normalY * minSeparation;
+  }
+
+  // Calculate relative velocity for more realistic collision response
+  const relativeVelX = ball.velocityX;
+  const relativeVelY = ball.velocityY - anvil.velocityY;
+
+  // Don't deflect if ball is already moving away from anvil
+  const approachingSpeed = relativeVelX * normalX + relativeVelY * normalY;
+  if (approachingSpeed > 0) return; // Ball is already moving away
+
+  // Apply deflection force
+  ball.velocityX += normalX * deflectionPower * 0.8;
+  ball.velocityY += normalY * deflectionPower * 0.6;
+
+  // Add some energy from the anvil's momentum
+  ball.velocityY += anvil.velocityY * 0.3; // Transfer some of anvil's downward velocity
+
+  // Add some randomness to make it feel more natural
+  ball.velocityX += (Math.random() - 0.5) * 2;
+  ball.velocityY += (Math.random() - 0.5) * 1;
+
+  // Clamp velocities to prevent unrealistic speeds
+  ball.velocityX = Math.max(-20, Math.min(20, ball.velocityX));
+  ball.velocityY = Math.max(-20, Math.min(20, ball.velocityY));
+
+  // Ball is no longer on seesaw after being hit
+  ball.onSeesaw = false;
 }
 
 function handleBallAnvilInteraction(anvil) {
@@ -638,15 +1246,7 @@ function handleBallAnvilInteraction(anvil) {
 function updateAnvilSeesawInteraction(anvil, i) {
   const bounds = getSeesawBounds();
 
-  if (
-    anvil.x >= bounds.left &&
-    anvil.x <= bounds.right &&
-    anvil.y + anvil.height / 2 >= bounds.top - 5 &&
-    !anvil.hitSeesaw
-  ) {
-    landAnvilOnSeesaw(anvil, bounds);
-  }
-
+  // Only handle anvils that are already on the seesaw
   if (anvil.hitSeesaw && !anvil.fallingOff) {
     updateAnvilOnSeesaw(anvil, i, bounds);
   }
@@ -679,6 +1279,61 @@ function landAnvilOnSeesaw(anvil, bounds) {
   });
 
   anvil.hitSeesaw = true;
+
+  // Calculate impact force for big anvils - make it much more dramatic!
+  if (anvil.isBig) {
+    // Base impact force from velocity, but add extra force for big anvils
+    const baseImpact = Math.abs(anvil.velocityY) * 3; // Increased from 2
+    const bigAnvilBonus = 8; // Extra impact just for being a big anvil
+    anvil.impactForce = baseImpact + bigAnvilBonus;
+
+    // If ball is on seesaw when big anvil hits, launch the ball dramatically!
+    if (ball.onSeesaw && !respawning) {
+      const anvilDistanceFromCenter = anvil.x - seesawX;
+      const ballDistanceFromCenter = ball.x - seesawX;
+
+      // Check if anvil and ball are on opposite sides of the seesaw
+      const oppositeSides =
+        anvilDistanceFromCenter * ballDistanceFromCenter < 0;
+
+      if (oppositeSides) {
+        // Calculate catapult effect - the further the anvil is from center, the stronger the launch
+        const anvilLeverArm = Math.abs(anvilDistanceFromCenter);
+        const ballLeverArm = Math.abs(ballDistanceFromCenter);
+        const maxLeverArm = seesawWidth / 2;
+
+        // Mechanical advantage: longer lever arm for anvil = more force
+        const leverageRatio = anvilLeverArm / maxLeverArm;
+        const launchMultiplier = 1.5 + leverageRatio * 3; // Increased: Up to 4.5x multiplier
+
+        // Launch the ball away from the seesaw center
+        const launchDirection = Math.sign(ballDistanceFromCenter); // 1 if ball is on right, -1 if on left
+        const launchPower = anvil.impactForce * launchMultiplier;
+
+        // Vertical launch (upward) - much stronger for big anvils
+        ball.velocityY = -Math.min(launchPower * 2, 25); // Increased from 1.5 and 20
+
+        // Horizontal launch (away from center, in direction ball is already positioned)
+        ball.velocityX = launchDirection * Math.min(launchPower * 1.2, 18); // Increased from 0.8 and 15
+
+        ball.onSeesaw = false;
+
+        // Create stronger visual effect at impact point
+        createSplash(anvil.x, bounds.top, "anvil", anvil.impactForce * 1.5);
+      } else if (
+        Math.abs(anvilDistanceFromCenter - ballDistanceFromCenter) < 50
+      ) {
+        // If they're on the same side and close together, just push the ball away more forcefully
+        const pushDirection = ball.x > anvil.x ? 1 : -1;
+        ball.velocityX = pushDirection * anvil.impactForce * 0.8; // Increased from 0.5
+        ball.velocityY = -anvil.impactForce * 1.2; // Increased multiplier
+        ball.onSeesaw = false;
+      }
+    }
+
+    // Create a strong visual impact effect even if no ball interaction
+    createSplash(anvil.x, bounds.top, "anvil", anvil.impactForce);
+  }
 
   if (landingBlocked) {
     anvil.y = highestAnvilY - anvil.height / 2;
@@ -745,21 +1400,67 @@ function updateAnvilOnSeesaw(anvil, i, bounds) {
 
 function drawAnvils() {
   anvils.forEach((anvil) => {
-    const { x, y, width, height } = anvil;
+    const { x, y, width, height, isBig } = anvil;
     const halfW = width / 2;
     const halfH = height / 2;
 
-    // Anvil body (dark gray)
-    drawRect(x - halfW, y - halfH, width, height, "#2A2A2A");
+    if (isBig) {
+      // Big anvil - darker and more imposing
+      // Draw a warning shadow when falling
+      if (!anvil.hitSeesaw) {
+        drawRect(
+          x - halfW + 2,
+          y - halfH + 2,
+          width,
+          height,
+          "rgba(0, 0, 0, 0.3)"
+        );
+      }
 
-    // Anvil top (wider part)
-    drawRect(x - halfW - 3, y - halfH, width + 6, 8, "#404040");
+      // Anvil body (very dark gray/black)
+      drawRect(x - halfW, y - halfH, width, height, "#1A1A1A");
 
-    // Anvil bottom (wider part)
-    drawRect(x - halfW - 2, y + halfH - 6, width + 4, 6, "#404040");
+      // Anvil top (wider part) - darker
+      drawRect(x - halfW - 4, y - halfH, width + 8, 12, "#2A2A2A");
 
-    // Metallic shine
-    drawRect(x - halfW + 2, y - halfH + 2, 4, height - 4, "#606060");
+      // Anvil bottom (wider part) - darker
+      drawRect(x - halfW - 3, y + halfH - 8, width + 6, 8, "#2A2A2A");
+
+      // Metallic shine - slightly darker
+      drawRect(x - halfW + 3, y - halfH + 3, 6, height - 6, "#404040");
+
+      // Additional shine line for big anvils
+      drawRect(x - halfW + width - 8, y - halfH + 3, 3, height - 6, "#303030");
+
+      // Red hot glow effect around big anvils
+      if (!anvil.hitSeesaw) {
+        ctx.save();
+        ctx.shadowColor = "#FF4444";
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+
+        // Draw a subtle red outline
+        ctx.strokeStyle = "#FF6666";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - halfW - 1, y - halfH - 1, width + 2, height + 2);
+
+        ctx.restore();
+      }
+    } else {
+      // Regular anvil (original code)
+      // Anvil body (dark gray)
+      drawRect(x - halfW, y - halfH, width, height, "#2A2A2A");
+
+      // Anvil top (wider part)
+      drawRect(x - halfW - 3, y - halfH, width + 6, 8, "#404040");
+
+      // Anvil bottom (wider part)
+      drawRect(x - halfW - 2, y + halfH - 6, width + 4, 6, "#404040");
+
+      // Metallic shine
+      drawRect(x - halfW + 2, y - halfH + 2, 4, height - 4, "#606060");
+    }
   });
 }
 
@@ -768,7 +1469,8 @@ function updateSeesawPhysics() {
 
   let leftTorque = 0,
     rightTorque = 0,
-    anvilsOnSeesaw = 0;
+    anvilsOnSeesaw = 0,
+    bigAnvilImpactBonus = 0;
 
   if (ball.onSeesaw) {
     const ballTorque = Math.abs(ball.x - seesawX) * OBJECTS.ball.weight;
@@ -779,15 +1481,36 @@ function updateSeesawPhysics() {
   anvils.forEach((anvil) => {
     if (anvil.hitSeesaw && !anvil.fallingOff) {
       anvilsOnSeesaw++;
-      const anvilTorque = Math.abs(anvil.x - seesawX) * OBJECTS.anvil.weight;
+      const anvilWeight = anvil.isBig
+        ? OBJECTS.bigAnvil.weight
+        : OBJECTS.anvil.weight;
+      const anvilTorque = Math.abs(anvil.x - seesawX) * anvilWeight;
+
+      // Add extra torque for big anvils that just landed (for dramatic effect)
+      if (anvil.isBig && anvil.impactForce && anvil.impactForce > 0) {
+        const impactTorque =
+          anvil.impactForce * Math.abs(anvil.x - seesawX) * 1.2; // Increased from 0.5
+        bigAnvilImpactBonus += anvil.x < seesawX ? -impactTorque : impactTorque;
+        // Gradually reduce impact force over time, but slower so effect lasts longer
+        anvil.impactForce *= 0.98; // Reduced from 0.95 for longer effect
+        if (anvil.impactForce < 0.5) anvil.impactForce = 0; // Increased threshold
+      }
+
       if (anvil.x < seesawX) leftTorque += anvilTorque;
       else rightTorque += anvilTorque;
     }
   });
 
-  const netTorque = rightTorque - leftTorque;
+  const netTorque = rightTorque - leftTorque + bigAnvilImpactBonus;
+
+  // Apply a multiplier when big anvils are involved for more dramatic effect
+  const bigAnvilMultiplier = bigAnvilImpactBonus !== 0 ? 1.8 : 1.0; // Extra multiplier for big anvils
+
   targetSeesawAngle =
-    netTorque * PHYSICS.torqueScale * (anvilsOnSeesaw > 0 ? 1.2 : 1);
+    netTorque *
+    PHYSICS.torqueScale *
+    (anvilsOnSeesaw > 0 ? 1.2 : 1) *
+    bigAnvilMultiplier;
 
   const safeMaxAngle = Math.min(
     PHYSICS.maxAngle,
@@ -812,6 +1535,8 @@ function checkSeesawCollision() {
       ball.y <= seesawHeightAtBallX + ball.radius + 20
     ) {
       ball.onSeesaw = true;
+      ball.canJump = true; // Ball can jump again when on seesaw
+      ball.airJumps = 0; // Reset air jumps when landing on seesaw
       ball.y = seesawHeightAtBallX - ball.radius;
       ball.velocityY = 0;
 
@@ -855,6 +1580,49 @@ function drawLives() {
       ctx.stroke();
     }
   }
+
+  // Show air jumps remaining when not on seesaw
+  if (!ball.onSeesaw) {
+    ctx.fillStyle = "#000";
+    ctx.font = "16px Arial";
+    ctx.fillText("Air Jumps:", 20, 65);
+
+    for (let i = 0; i < ball.maxAirJumps; i++) {
+      const jumpX = 110 + i * 25;
+      const jumpY = 58;
+      const jumpRadius = 8;
+
+      if (i < ball.maxAirJumps - ball.airJumps) {
+        // Available air jumps - show as small blue circles
+        drawCircle(jumpX, jumpY, jumpRadius, "#4A90E2");
+      } else {
+        // Used air jumps - show as empty circles
+        ctx.strokeStyle = "#CCCCCC";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(jumpX, jumpY, jumpRadius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function drawTimer() {
+  // Format time as MM:SS
+  const minutes = Math.floor(survivalTime / 60);
+  const seconds = Math.floor(survivalTime % 60);
+  const timeString = `${minutes.toString().padStart(2, "0")}:${seconds
+    .toString()
+    .padStart(2, "0")}`;
+
+  // Draw timer in top right corner
+  ctx.fillStyle = "#000";
+  ctx.font = "24px Arial";
+  ctx.textAlign = "right";
+  ctx.fillText("Time: " + timeString, canvas.width - 20, 35);
+
+  // Reset text alignment for other text
+  ctx.textAlign = "left";
 }
 
 function drawSky() {
@@ -1019,6 +1787,16 @@ function animate(currentTime = 0) {
     return;
   }
 
+  // Initialize game start time on first frame
+  if (gameStartTime === 0 && !gameOver) {
+    gameStartTime = currentTime;
+  }
+
+  // Update survival timer (only when game is active)
+  if (!gameOver && !respawning && gameStartTime > 0) {
+    survivalTime = (currentTime - gameStartTime) / 1000; // Convert to seconds
+  }
+
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Don't update game logic if game is over
@@ -1026,6 +1804,7 @@ function animate(currentTime = 0) {
     handleInput();
     updateBall();
     updateAnvils();
+    updateWaterPockets(); // Update water pocket system
     updateSeesawPhysics(); // Update seesaw physics smoothly
     updateSplash(); // Update splash particles
   }
@@ -1035,6 +1814,7 @@ function animate(currentTime = 0) {
   drawSun();
   drawClouds();
   drawWater();
+  drawWaterPockets(); // Draw water pockets after water
 
   // Draw game elements
   drawSeesaw();
@@ -1042,6 +1822,7 @@ function animate(currentTime = 0) {
   drawBall();
   drawSplash(); // Draw splash effect
   drawLives();
+  drawTimer(); // Draw survival timer
 
   // Game over check
   if (lives <= 0 && !gameOver) {

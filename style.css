@@ -29,12 +29,16 @@ canvas {
   height: auto;
   display: block;
   touch-action: manipulation; /* Improves touch responsiveness */
+  user-select: none; /* Prevent text selection on mobile */
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* Disable callout on iOS */
 }
 
 /* Mobile-specific adjustments */
 @media (max-width: 768px) {
   body {
     padding: 5px;
+    overflow: hidden; /* Prevent scrolling on mobile */
   }
 
   #gameTitle {
@@ -56,10 +60,22 @@ canvas {
 @media (max-width: 480px) {
   body {
     padding: 2px;
+    overflow: hidden; /* Prevent scrolling on small screens */
+  }
+
+  #gameTitle {
+    font-size: clamp(18px, 7vw, 28px);
+    margin: 0 0 3px 0;
   }
 
   canvas {
     max-height: calc(100vh - 110px);
+  }
+
+  #mobileControls {
+    font-size: 11px;
+    padding: 6px;
+    margin-top: 5px;
   }
 }
 
@@ -88,6 +104,45 @@ canvas {
 @media (pointer: coarse) {
   .mobile-only {
     display: block;
+  }
+}
+
+/* Landscape orientation on mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  body {
+    padding: 2px;
+  }
+
+  #gameTitle {
+    font-size: clamp(16px, 4vh, 24px);
+    margin: 0 0 2px 0;
+  }
+
+  canvas {
+    max-height: calc(100vh - 60px);
+  }
+
+  #mobileControls {
+    font-size: 10px;
+    padding: 4px;
+    margin-top: 2px;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 320px) {
+  #gameTitle {
+    font-size: clamp(16px, 8vw, 24px);
+  }
+
+  #mobileControls {
+    font-size: 10px;
+    padding: 4px;
+  }
+
+  .game-over-content {
+    padding: 20px 15px;
+    margin: 10px;
   }
 }
 
@@ -129,6 +184,17 @@ canvas {
   font-weight: bold;
 }
 
+#survivalTimeDisplay {
+  margin: 0 0 25px 0;
+  font-size: clamp(18px, 4vw, 24px);
+  color: #333;
+  font-weight: bold;
+  background: linear-gradient(135deg, #4caf50, #45a049);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 #playAgainButton {
   background: linear-gradient(135deg, #4caf50, #45a049);
   color: white;
@@ -163,6 +229,11 @@ canvas {
 
   .game-over-content h2 {
     margin: 0 0 20px 0;
+  }
+
+  #survivalTimeDisplay {
+    margin: 0 0 20px 0;
+    font-size: clamp(16px, 5vw, 20px);
   }
 
   #playAgainButton {
