@@ -83,6 +83,7 @@ initializeCanvas();
 // Game constants (will be set after canvas initialization)
 let WATER_LEVEL = canvas.height - 100;
 let ANVIL_SPAWN_RATE = 180; // Will be adjusted for mobile
+let BIG_ANVIL_SPAWN_RATE = 400; // Initialize this early
 const BALL_JUMP_POWER = -12;
 const AIR_JUMP_POWER = -8; // Weaker air jumps
 const SQUISH_DURATION = 60;
@@ -140,6 +141,7 @@ function getObjects() {
   return isMobile ? MOBILE_OBJECTS : OBJECTS;
 }
 
+// Seesaw variables - initialized early to avoid reference errors
 let seesawAngle = 0;
 let targetSeesawAngle = 0;
 let seesawX = canvas.width / 2;
@@ -180,7 +182,6 @@ let survivalTime = 0;
 let anvils = [];
 let anvilSpawnTimer = 0;
 let bigAnvilSpawnTimer = 0;
-let BIG_ANVIL_SPAWN_RATE = 400; // Spawn big anvils a bit more frequently for better gameplay
 
 let splash = { active: false, x: 0, y: 0, particles: [], timer: 0 };
 
