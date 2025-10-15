@@ -30,7 +30,7 @@ function initializeCanvas() {
 
   // Use smaller base dimensions on mobile for better performance
   const actualBaseWidth = isMobile ? Math.min(600, maxWidth) : baseWidth;
-  const actualBaseHeight = isMobile ? Math.min(400, maxHeight) : baseHeight;
+  const actualBaseHeight = isMobile ? Math.min(500, maxHeight) : baseHeight; // Increased height for mobile
 
   // Scale to fit available space
   const scaleX = maxWidth / actualBaseWidth;
@@ -63,9 +63,9 @@ function initializeCanvas() {
 function handleResize() {
   initializeCanvas();
   // Recalculate game constants based on new canvas size
-  WATER_LEVEL = canvas.height - 100;
+  WATER_LEVEL = canvas.height - (isMobile ? 60 : 100); // Adjust for mobile
   seesawX = canvas.width / 2;
-  seesawY = WATER_LEVEL - 250;
+  seesawY = WATER_LEVEL - (isMobile ? 150 : 250); // Adjust seesaw position for mobile
   seesawWidth = getObjects().seesaw.width;
   seesawHeight = getObjects().seesaw.height;
 
@@ -85,7 +85,7 @@ window.addEventListener("orientationchange", () => {
 initializeCanvas();
 
 // Game constants (will be set after canvas initialization)
-let WATER_LEVEL = canvas.height - 100;
+let WATER_LEVEL = canvas.height - (isMobile ? 60 : 100); // Adjust for mobile
 let ANVIL_SPAWN_RATE = 180; // Will be adjusted for mobile
 let BIG_ANVIL_SPAWN_RATE = 400; // Initialize this early
 const BALL_JUMP_POWER = -12;
@@ -137,7 +137,7 @@ const MOBILE_OBJECTS = {
   ball: { radius: 15, weight: 1 },
   anvil: { width: 25, height: 35, weight: 10, spawnVelocity: 2.8 }, // Slightly faster on mobile
   bigAnvil: { width: 45, height: 60, weight: 25, spawnVelocity: 3.3 }, // Slightly faster on mobile
-  seesaw: { width: canvas.width * 0.7, height: 25 },
+  seesaw: { width: canvas.width * 0.8, height: 25 }, // Slightly wider seesaw on mobile for easier gameplay
 };
 
 // Get appropriate object values based on device
@@ -149,7 +149,7 @@ function getObjects() {
 let seesawAngle = 0;
 let targetSeesawAngle = 0;
 let seesawX = canvas.width / 2;
-let seesawY = WATER_LEVEL - 250;
+let seesawY = WATER_LEVEL - (isMobile ? 150 : 250); // Adjust for mobile
 let seesawWidth = OBJECTS.seesaw.width;
 let seesawHeight = OBJECTS.seesaw.height;
 
@@ -203,6 +203,21 @@ const WATER_POCKET = {
   lifetime: 180, // How long they stay up (frames)
   pushForce: -15, // Upward force when ball touches
 };
+
+// Mobile water pocket adjustments for smaller screens
+const MOBILE_WATER_POCKET = {
+  width: 80, // Much smaller for mobile to fit better
+  maxHeight: 120,
+  riseSpeed: 4,
+  fallSpeed: 2,
+  lifetime: 180,
+  pushForce: -15,
+};
+
+// Get appropriate water pocket values based on device
+function getWaterPocket() {
+  return isMobile ? MOBILE_WATER_POCKET : WATER_POCKET;
+}
 
 // Game timing
 let lastTime = 0;
@@ -625,34 +640,36 @@ function updateSplash() {
 function spawnWaterPocketOnSide(side) {
   // Calculate seesaw bounds to avoid spawning under it
   const seesawBounds = getSeesawBounds();
-  const seesawBuffer = 50; // Extra space around seesaw to avoid
+  const seesawBuffer = isMobile ? 30 : 50; // Smaller buffer on mobile
   const avoidLeft = seesawBounds.left - seesawBuffer;
   const avoidRight = seesawBounds.right + seesawBuffer;
+
+  const waterPocket = getWaterPocket();
 
   let spawnX;
 
   // Calculate available space on each side
-  const leftSpaceWidth = avoidLeft - WATER_POCKET.width / 2;
+  const leftSpaceWidth = avoidLeft - waterPocket.width / 2;
   const rightSpaceStart = avoidRight;
-  const rightSpaceWidth = canvas.width - avoidRight - WATER_POCKET.width / 2;
+  const rightSpaceWidth = canvas.width - avoidRight - waterPocket.width / 2;
 
-  if (side === "left" && leftSpaceWidth > WATER_POCKET.width) {
+  if (side === "left" && leftSpaceWidth > waterPocket.width) {
     // Spawn on left side, fill most of the space
     spawnX =
-      WATER_POCKET.width / 2 +
-      Math.random() * (leftSpaceWidth - WATER_POCKET.width / 2);
-  } else if (side === "right" && rightSpaceWidth > WATER_POCKET.width) {
+      waterPocket.width / 2 +
+      Math.random() * (leftSpaceWidth - waterPocket.width / 2);
+  } else if (side === "right" && rightSpaceWidth > waterPocket.width) {
     // Spawn on right side, fill most of the space
     spawnX =
       rightSpaceStart +
-      WATER_POCKET.width / 2 +
-      Math.random() * (rightSpaceWidth - WATER_POCKET.width / 2);
+      waterPocket.width / 2 +
+      Math.random() * (rightSpaceWidth - waterPocket.width / 2);
   } else {
     // Fallback to edge spawning if not enough space
     if (side === "left") {
-      spawnX = WATER_POCKET.width / 2;
+      spawnX = waterPocket.width / 2;
     } else {
-      spawnX = canvas.width - WATER_POCKET.width / 2;
+      spawnX = canvas.width - waterPocket.width / 2;
     }
   }
 
@@ -662,7 +679,7 @@ function spawnWaterPocketOnSide(side) {
     height: 0,
     phase: "rising", // 'rising', 'active', 'falling'
     timer: 0,
-    maxHeight: WATER_POCKET.maxHeight * (0.7 + Math.random() * 0.6), // Random height variation
+    maxHeight: waterPocket.maxHeight * (0.7 + Math.random() * 0.6), // Random height variation
     particles: [],
     side: side, // Track which side this geyser is on
   });
@@ -696,11 +713,12 @@ function updateWaterPockets() {
   // Update existing pockets
   for (let i = waterPockets.length - 1; i >= 0; i--) {
     const pocket = waterPockets[i];
+    const waterPocket = getWaterPocket();
     pocket.timer++;
 
     switch (pocket.phase) {
       case "rising":
-        pocket.height += WATER_POCKET.riseSpeed;
+        pocket.height += waterPocket.riseSpeed;
         if (pocket.height >= pocket.maxHeight) {
           pocket.height = pocket.maxHeight;
           pocket.phase = "active";
@@ -710,14 +728,14 @@ function updateWaterPockets() {
 
       case "active":
         // Stay at full height for a while
-        if (pocket.timer >= WATER_POCKET.lifetime) {
+        if (pocket.timer >= waterPocket.lifetime) {
           pocket.phase = "falling";
           pocket.timer = 0;
         }
         break;
 
       case "falling":
-        pocket.height -= WATER_POCKET.fallSpeed;
+        pocket.height -= waterPocket.fallSpeed;
         if (pocket.height <= 0) {
           waterPockets.splice(i, 1);
           continue;
@@ -736,9 +754,10 @@ function updateWaterPockets() {
 function checkWaterPocketCollision(pocket) {
   if (pocket.height <= 0) return;
 
+  const waterPocket = getWaterPocket();
   const pocketTop = WATER_LEVEL - pocket.height;
-  const pocketLeft = pocket.x - WATER_POCKET.width / 2;
-  const pocketRight = pocket.x + WATER_POCKET.width / 2;
+  const pocketLeft = pocket.x - waterPocket.width / 2;
+  const pocketRight = pocket.x + waterPocket.width / 2;
 
   // Check if ball is touching the water pocket
   if (
@@ -748,7 +767,7 @@ function checkWaterPocketCollision(pocket) {
     ball.y - ball.radius <= WATER_LEVEL
   ) {
     // Launch the ball upward
-    ball.velocityY = WATER_POCKET.pushForce;
+    ball.velocityY = waterPocket.pushForce;
     ball.y = pocketTop - ball.radius; // Position ball on top of geyser
 
     // Add some horizontal movement toward seesaw center for better gameplay
@@ -770,12 +789,13 @@ function checkWaterPocketCollision(pocket) {
 
 function createWaterPocketParticles(pocket) {
   // Add spray particles when pocket is active
+  const waterPocket = getWaterPocket();
   for (let i = 0; i < 8; i++) {
     const angle = Math.PI / 3 + (Math.random() - 0.5) * (Math.PI / 2); // Spray upward
     const speed = 3 + Math.random() * 4;
 
     pocket.particles.push({
-      x: pocket.x + (Math.random() - 0.5) * WATER_POCKET.width * 0.8,
+      x: pocket.x + (Math.random() - 0.5) * waterPocket.width * 0.8,
       y: WATER_LEVEL - pocket.height,
       velocityX: Math.cos(angle) * speed,
       velocityY: Math.sin(angle) * speed,
@@ -836,9 +856,10 @@ function drawWaterPockets() {
   waterPockets.forEach((pocket) => {
     if (pocket.height <= 0) return;
 
+    const waterPocket = getWaterPocket();
     const pocketTop = WATER_LEVEL - pocket.height;
-    const pocketLeft = pocket.x - WATER_POCKET.width / 2;
-    const pocketRight = pocket.x + WATER_POCKET.width / 2;
+    const pocketLeft = pocket.x - waterPocket.width / 2;
+    const pocketRight = pocket.x + waterPocket.width / 2;
 
     // Draw water column with gradient
     const gradient = ctx.createLinearGradient(0, pocketTop, 0, WATER_LEVEL);
@@ -847,16 +868,16 @@ function drawWaterPockets() {
     gradient.addColorStop(1, "#2E6AB8"); // Darker blue at bottom
 
     ctx.fillStyle = gradient;
-    ctx.fillRect(pocketLeft, pocketTop, WATER_POCKET.width, pocket.height);
+    ctx.fillRect(pocketLeft, pocketTop, waterPocket.width, pocket.height);
 
     // Add white foam at the top
     if (pocket.phase === "rising" || pocket.phase === "active") {
       ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-      ctx.fillRect(pocketLeft, pocketTop, WATER_POCKET.width, 8);
+      ctx.fillRect(pocketLeft, pocketTop, waterPocket.width, 8);
 
       // Add some bubbles at the top
       for (let i = 0; i < 5; i++) {
-        const bubbleX = pocketLeft + Math.random() * WATER_POCKET.width;
+        const bubbleX = pocketLeft + Math.random() * waterPocket.width;
         const bubbleY = pocketTop + Math.random() * 15;
         drawCircle(
           bubbleX,
