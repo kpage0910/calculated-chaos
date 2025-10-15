@@ -26,23 +26,23 @@ let baseHeight = 900;
 // Initialize canvas size and scaling
 function initializeCanvas() {
   const maxWidth = window.innerWidth - 20;
-  const maxHeight = window.innerHeight - 80;
+  const maxHeight = window.innerHeight - 100; // More space for UI elements
 
   // Use smaller base dimensions on mobile for better performance
-  const actualBaseWidth = isMobile ? Math.min(800, maxWidth) : baseWidth;
-  const actualBaseHeight = isMobile ? Math.min(600, maxHeight) : baseHeight;
+  const actualBaseWidth = isMobile ? Math.min(600, maxWidth) : baseWidth;
+  const actualBaseHeight = isMobile ? Math.min(400, maxHeight) : baseHeight;
 
-  // For desktop, scale down only if needed, don't scale up
+  // Scale to fit available space
   const scaleX = maxWidth / actualBaseWidth;
   const scaleY = maxHeight / actualBaseHeight;
-  gameScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond original size
+  gameScale = Math.min(scaleX, scaleY, isMobile ? 1.2 : 1); // Allow slight upscaling on mobile
 
   canvas.width = actualBaseWidth;
   canvas.height = actualBaseHeight;
 
-  // Apply scaling only for display, keeping internal resolution
-  canvas.style.width = actualBaseWidth * gameScale + "px";
-  canvas.style.height = actualBaseHeight * gameScale + "px";
+  // Apply scaling for display
+  canvas.style.width = (actualBaseWidth * gameScale) + "px";
+  canvas.style.height = (actualBaseHeight * gameScale) + "px";
 
   // Disable image smoothing for crisp pixel art
   ctx.imageSmoothingEnabled = false;
