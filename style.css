@@ -148,7 +148,7 @@ canvas {
 }
 
 .game-start-hint {
-  color: #90EE90 !important;
+  color: #90ee90 !important;
   font-weight: bold;
   font-size: 14px !important;
   margin: 10px 0 20px 0 !important;
@@ -156,8 +156,13 @@ canvas {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .rotate-icon {

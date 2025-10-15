@@ -30,12 +30,12 @@ function initializeCanvas() {
 
   // Use responsive base dimensions
   let actualBaseWidth, actualBaseHeight;
-  
+
   if (isMobile) {
     // For mobile, use responsive dimensions based on screen size
     const aspectRatio = 16 / 10; // Preferred game aspect ratio
     const screenAspectRatio = maxWidth / maxHeight;
-    
+
     if (screenAspectRatio > aspectRatio) {
       // Screen is wider than preferred ratio - limit by height
       actualBaseHeight = Math.min(500, maxHeight);
@@ -84,7 +84,7 @@ function handleResize() {
   WATER_LEVEL = canvas.height - (isMobile ? canvas.height * 0.12 : 100); // Responsive water level
   seesawX = canvas.width / 2;
   seesawY = WATER_LEVEL - (isMobile ? canvas.height * 0.3 : 250); // Responsive seesaw position
-  
+
   // Update object sizes for new canvas dimensions
   if (isMobile) {
     MOBILE_OBJECTS.ball.radius = Math.max(12, canvas.width * 0.02);
@@ -95,7 +95,7 @@ function handleResize() {
     MOBILE_OBJECTS.seesaw.width = canvas.width * 0.85;
     MOBILE_OBJECTS.seesaw.height = Math.max(20, canvas.height * 0.035);
   }
-  
+
   seesawWidth = getObjects().seesaw.width;
   seesawHeight = getObjects().seesaw.height;
 
@@ -217,9 +217,22 @@ const OBJECTS = {
 // Mobile object adjustments for consistent feel
 const MOBILE_OBJECTS = {
   ball: { radius: Math.max(12, canvas.width * 0.02), weight: 1 }, // Responsive ball size
-  anvil: { width: Math.max(20, canvas.width * 0.03), height: Math.max(30, canvas.width * 0.04), weight: 10, spawnVelocity: 2.8 },
-  bigAnvil: { width: Math.max(35, canvas.width * 0.055), height: Math.max(50, canvas.width * 0.075), weight: 25, spawnVelocity: 3.3 },
-  seesaw: { width: canvas.width * 0.85, height: Math.max(20, canvas.height * 0.035) }, // More responsive seesaw
+  anvil: {
+    width: Math.max(20, canvas.width * 0.03),
+    height: Math.max(30, canvas.width * 0.04),
+    weight: 10,
+    spawnVelocity: 2.8,
+  },
+  bigAnvil: {
+    width: Math.max(35, canvas.width * 0.055),
+    height: Math.max(50, canvas.width * 0.075),
+    weight: 25,
+    spawnVelocity: 3.3,
+  },
+  seesaw: {
+    width: canvas.width * 0.85,
+    height: Math.max(20, canvas.height * 0.035),
+  }, // More responsive seesaw
 };
 
 // Get appropriate object values based on device
