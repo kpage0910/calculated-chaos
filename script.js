@@ -58,6 +58,7 @@ const isMobile =
 // Adjust game difficulty for mobile
 if (isMobile) {
   ANVIL_SPAWN_RATE = 220; // Slower spawn rate on mobile for better performance
+  BIG_ANVIL_SPAWN_RATE = 500; // Also slower big anvil spawn rate on mobile
 }
 
 const PHYSICS = {
@@ -69,12 +70,40 @@ const PHYSICS = {
   maxAngle: 0.4,
 };
 
+// Mobile physics adjustments for consistent feel
+const MOBILE_PHYSICS = {
+  gravity: 0.38, // Slightly stronger gravity on mobile for better responsiveness
+  friction: 0.96, // Less friction for more responsive movement
+  moveSpeed: 0.55, // Stronger movement for touch controls
+  angleSmoothing: 0.09,
+  torqueScale: 0.00012,
+  maxAngle: 0.45,
+};
+
+// Get appropriate physics values based on device
+function getPhysics() {
+  return isMobile ? MOBILE_PHYSICS : PHYSICS;
+}
+
 const OBJECTS = {
   ball: { radius: 15, weight: 1 },
   anvil: { width: 25, height: 35, weight: 10, spawnVelocity: 2.5 }, // Reduced from 3
   bigAnvil: { width: 45, height: 60, weight: 25, spawnVelocity: 3 }, // Reduced from 4
   seesaw: { width: canvas.width * 0.7, height: 25 },
 };
+
+// Mobile object adjustments for consistent feel
+const MOBILE_OBJECTS = {
+  ball: { radius: 15, weight: 1 },
+  anvil: { width: 25, height: 35, weight: 10, spawnVelocity: 2.8 }, // Slightly faster on mobile
+  bigAnvil: { width: 45, height: 60, weight: 25, spawnVelocity: 3.3 }, // Slightly faster on mobile
+  seesaw: { width: canvas.width * 0.7, height: 25 },
+};
+
+// Get appropriate object values based on device
+function getObjects() {
+  return isMobile ? MOBILE_OBJECTS : OBJECTS;
+}
 
 let seesawAngle = 0;
 let targetSeesawAngle = 0;
@@ -83,11 +112,11 @@ const seesawY = WATER_LEVEL - 250;
 const seesawWidth = OBJECTS.seesaw.width;
 const seesawHeight = OBJECTS.seesaw.height;
 
-// Ball properties
+// Ball properties (radius will be set after device detection)
 const ball = {
   x: seesawX,
   y: seesawY - 50,
-  radius: OBJECTS.ball.radius,
+  radius: 15, // Will be updated after mobile detection
   velocityX: 0,
   velocityY: 0,
   onSeesaw: false,
@@ -99,6 +128,9 @@ const ball = {
   airJumps: 0,
   maxAirJumps: 2, // Allow 2 air jumps before needing to land
 };
+
+// Initialize ball radius based on device (after ball object is defined)
+ball.radius = getObjects().ball.radius;
 
 // Lives system
 let lives = 3;
@@ -113,7 +145,7 @@ let survivalTime = 0;
 let anvils = [];
 let anvilSpawnTimer = 0;
 let bigAnvilSpawnTimer = 0;
-const BIG_ANVIL_SPAWN_RATE = 400; // Spawn big anvils a bit more frequently for better gameplay
+let BIG_ANVIL_SPAWN_RATE = 400; // Spawn big anvils a bit more frequently for better gameplay
 
 let splash = { active: false, x: 0, y: 0, particles: [], timer: 0 };
 
@@ -207,110 +239,91 @@ document.addEventListener("keyup", (e) => {
   keys[e.key] = false;
 });
 
-// Touch controls for mobile
-let touchStartX = null;
-let touchStartY = null;
-let touchStartTime = null;
+// Mobile button controls
+let mobileControls = {
+  left: false,
+  right: false,
+  up: false,
+  down: false,
+};
 
-// Touch event handlers for mobile
-canvas.addEventListener(
-  "touchstart",
-  (e) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    touchStartX = (touch.clientX - rect.left) / gameScale;
-    touchStartY = (touch.clientY - rect.top) / gameScale;
-    touchStartTime = Date.now();
-  },
-  { passive: false }
-);
-
-canvas.addEventListener(
-  "touchend",
-  (e) => {
-    e.preventDefault();
-    if (touchStartX === null || touchStartY === null) return;
-
-    const touchDuration = Date.now() - touchStartTime;
-    const rect = canvas.getBoundingClientRect();
-    const touch = e.changedTouches[0];
-    const touchEndX = (touch.clientX - rect.left) / gameScale;
-    const touchEndY = (touch.clientY - rect.top) / gameScale;
-
-    const deltaX = touchEndX - touchStartX;
-    const deltaY = touchEndY - touchStartY;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-    // Tap (short touch with minimal movement) = jump
-    if (touchDuration < 200 && distance < 30) {
-      // Use same jump logic as keyboard
-      if (ball.onSeesaw && ball.canJump) {
-        ball.velocityY = BALL_JUMP_POWER;
-        ball.canJump = false;
-        ball.airJumps = 0;
-      } else if (!ball.onSeesaw && ball.airJumps < ball.maxAirJumps) {
-        ball.velocityY = AIR_JUMP_POWER;
-        ball.airJumps++;
-      }
-    }
-    // Swipe gestures
-    else if (distance > 50) {
-      if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        // Horizontal swipe - move left/right
-        if (deltaX > 0) {
-          keys["ArrowRight"] = true;
-          setTimeout(() => (keys["ArrowRight"] = false), 200);
-        } else {
-          keys["ArrowLeft"] = true;
-          setTimeout(() => (keys["ArrowLeft"] = false), 200);
-        }
-      } else {
-        // Vertical swipe
-        if (deltaY > 0) {
-          keys["ArrowDown"] = true;
-          setTimeout(() => (keys["ArrowDown"] = false), 100);
-        } else {
-          // Up swipe = jump (same logic as tap)
-          if (ball.onSeesaw && ball.canJump) {
-            ball.velocityY = BALL_JUMP_POWER;
-            ball.canJump = false;
-            ball.airJumps = 0;
-          } else if (!ball.onSeesaw && ball.airJumps < ball.maxAirJumps) {
-            ball.velocityY = AIR_JUMP_POWER;
-            ball.airJumps++;
-          }
-        }
-      }
-    }
-
-    touchStartX = null;
-    touchStartY = null;
-    touchStartTime = null;
-  },
-  { passive: false }
-);
-
-// Prevent default touch behaviors
-canvas.addEventListener(
-  "touchmove",
-  (e) => {
-    e.preventDefault();
-  },
-  { passive: false }
-);
-
-// Play Again button event listener
+// Play Again button event listener and mobile controls
 document.addEventListener("DOMContentLoaded", () => {
   const playAgainButton = document.getElementById("playAgainButton");
   playAgainButton.addEventListener("click", resetGame);
+
+  // Mobile control buttons
+  const leftBtn = document.getElementById("leftBtn");
+  const rightBtn = document.getElementById("rightBtn");
+  const jumpBtn = document.getElementById("jumpBtn");
+  const downBtn = document.getElementById("downBtn");
+
+  if (leftBtn && rightBtn && jumpBtn && downBtn) {
+    // Touch start events
+    leftBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      mobileControls.left = true;
+    });
+    rightBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      mobileControls.right = true;
+    });
+    jumpBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      mobileControls.up = true;
+    });
+    downBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      mobileControls.down = true;
+    });
+
+    // Touch end events
+    leftBtn.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      mobileControls.left = false;
+    });
+    rightBtn.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      mobileControls.right = false;
+    });
+    jumpBtn.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      mobileControls.up = false;
+      ball.jumpPressed = false;
+    });
+    downBtn.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      mobileControls.down = false;
+    });
+
+    // Also handle mouse events for testing on desktop
+    leftBtn.addEventListener("mousedown", () => (mobileControls.left = true));
+    leftBtn.addEventListener("mouseup", () => (mobileControls.left = false));
+    rightBtn.addEventListener("mousedown", () => (mobileControls.right = true));
+    rightBtn.addEventListener("mouseup", () => (mobileControls.right = false));
+    jumpBtn.addEventListener("mousedown", () => (mobileControls.up = true));
+    jumpBtn.addEventListener("mouseup", () => {
+      mobileControls.up = false;
+      ball.jumpPressed = false;
+    });
+    downBtn.addEventListener("mousedown", () => (mobileControls.down = true));
+    downBtn.addEventListener("mouseup", () => (mobileControls.down = false));
+
+    // Prevent context menu on long press
+    [leftBtn, rightBtn, jumpBtn, downBtn].forEach((btn) => {
+      btn.addEventListener("contextmenu", (e) => e.preventDefault());
+    });
+  }
 });
 
 function handleInput() {
+  const physics = getPhysics();
   const airControlFactor = ball.onSeesaw ? 1.8 : 0.8; // Strong air control for recovery
+
+  // Handle keyboard input
   const controls = {
-    ArrowLeft: () => (ball.velocityX -= PHYSICS.moveSpeed * airControlFactor),
-    ArrowRight: () => (ball.velocityX += PHYSICS.moveSpeed * airControlFactor),
+    ArrowLeft: () => (ball.velocityX -= physics.moveSpeed * airControlFactor),
+    ArrowRight: () => (ball.velocityX += physics.moveSpeed * airControlFactor),
     ArrowUp: () => {
       const currentlyPressed = keys["ArrowUp"];
 
@@ -330,7 +343,7 @@ function handleInput() {
       ball.jumpPressed = currentlyPressed;
     },
     ArrowDown: () => {
-      if (ball.onSeesaw) ball.velocityY += PHYSICS.moveSpeed;
+      if (ball.onSeesaw) ball.velocityY += physics.moveSpeed;
     },
   };
 
@@ -338,8 +351,34 @@ function handleInput() {
     if (keys[key]) action();
   });
 
-  // Handle jump key release
-  if (!keys["ArrowUp"]) {
+  // Handle mobile controls
+  if (mobileControls.left) {
+    ball.velocityX -= physics.moveSpeed * airControlFactor;
+  }
+  if (mobileControls.right) {
+    ball.velocityX += physics.moveSpeed * airControlFactor;
+  }
+  if (mobileControls.up) {
+    if (!ball.jumpPressed) {
+      if (ball.onSeesaw && ball.canJump) {
+        // Regular jump from seesaw - full power
+        ball.velocityY = BALL_JUMP_POWER;
+        ball.canJump = false;
+        ball.airJumps = 0; // Reset air jumps when jumping from seesaw
+      } else if (!ball.onSeesaw && ball.airJumps < ball.maxAirJumps) {
+        // Air jump - weaker power, limited uses
+        ball.velocityY = AIR_JUMP_POWER;
+        ball.airJumps++;
+      }
+    }
+    ball.jumpPressed = true;
+  }
+  if (mobileControls.down) {
+    if (ball.onSeesaw) ball.velocityY += physics.moveSpeed;
+  }
+
+  // Handle jump key/button release
+  if (!keys["ArrowUp"] && !mobileControls.up) {
     ball.jumpPressed = false;
   }
 }
@@ -371,6 +410,8 @@ function applyBoundaryCollision(obj, bounds, restitution = 0.7) {
 function updateBall() {
   if (respawning) return;
 
+  const physics = getPhysics();
+
   if (ball.isSquished) {
     if (--ball.squishTimer <= 0) {
       ball.isSquished = false;
@@ -390,7 +431,7 @@ function updateBall() {
     return;
   }
 
-  if (!ball.onSeesaw) ball.velocityY += PHYSICS.gravity;
+  if (!ball.onSeesaw) ball.velocityY += physics.gravity;
 
   // Clamp velocities to prevent clipping through objects
   ball.velocityX = clampVelocity(ball.velocityX, -15, 15);
@@ -401,7 +442,7 @@ function updateBall() {
 
   // Apply different friction based on whether ball is on seesaw or in air
   if (ball.onSeesaw) {
-    ball.velocityX *= PHYSICS.friction;
+    ball.velocityX *= physics.friction;
   } else {
     // Less air resistance when not on seesaw for better control
     ball.velocityX *= 0.99;
@@ -860,7 +901,7 @@ function resetGame() {
 
   // Reset ball
   resetBallState(seesawX, seesawY - 50);
-  ball.radius = OBJECTS.ball.radius;
+  ball.radius = getObjects().ball.radius;
 
   // Clear anvils
   anvils = [];
@@ -909,12 +950,13 @@ function spawnAnvil() {
   // Don't spawn if too many anvils already exist
   if (anvils.length >= MAX_ANVILS_ON_SCREEN) return;
 
+  const objects = getObjects();
   anvils.push({
     x: Math.random() * canvas.width,
     y: -30,
-    width: OBJECTS.anvil.width,
-    height: OBJECTS.anvil.height,
-    velocityY: OBJECTS.anvil.spawnVelocity,
+    width: objects.anvil.width,
+    height: objects.anvil.height,
+    velocityY: objects.anvil.spawnVelocity,
     crushedBall: false,
     hitSeesaw: false,
     slideDirection: 0,
@@ -928,12 +970,13 @@ function spawnBigAnvil() {
   // Don't spawn if too many anvils already exist
   if (anvils.length >= MAX_ANVILS_ON_SCREEN) return;
 
+  const objects = getObjects();
   anvils.push({
     x: Math.random() * canvas.width,
     y: -60,
-    width: OBJECTS.bigAnvil.width,
-    height: OBJECTS.bigAnvil.height,
-    velocityY: OBJECTS.bigAnvil.spawnVelocity,
+    width: objects.bigAnvil.width,
+    height: objects.bigAnvil.height,
+    velocityY: objects.bigAnvil.spawnVelocity,
     crushedBall: false,
     hitSeesaw: false,
     slideDirection: 0,
@@ -1105,7 +1148,11 @@ function updateAnvilPhysics(anvil) {
   // Water collision check
   if (anvil.y + anvil.height / 2 >= WATER_LEVEL && !anvil.hitWater) {
     anvil.hitWater = true;
-    const impactMagnitude = Math.abs(anvil.velocityY) + (anvil.isBig ? 6 : 3);
+    const baseImpactMagnitude =
+      Math.abs(anvil.velocityY) + (anvil.isBig ? 6 : 3);
+    // Enhance big anvil splash effects on mobile
+    const mobileMultiplier = isMobile && anvil.isBig ? 1.3 : 1.0;
+    const impactMagnitude = baseImpactMagnitude * mobileMultiplier;
     createSplash(anvil.x, WATER_LEVEL, "anvil", impactMagnitude);
   }
 }
@@ -1156,6 +1203,9 @@ function updateAnvilBallCollision(anvil) {
 
 function handleBigAnvilBallInteraction(anvil) {
   // Big anvils push the ball more forcefully
+  // Apply stronger effects on mobile to compensate for touch controls
+  const mobileMultiplier = isMobile ? 1.3 : 1.0;
+
   if (ball.y < anvil.y - anvil.height / 2 && ball.velocityY >= 0) {
     ball.y = anvil.y - anvil.height / 2 - ball.radius;
     ball.velocityY = 0;
@@ -1163,7 +1213,7 @@ function handleBigAnvilBallInteraction(anvil) {
     // Push ball away from sides of big anvil with more force
     const pushDirection = ball.x < anvil.x ? -1 : 1;
     ball.x = anvil.x + pushDirection * (anvil.width / 2 + ball.radius + 5);
-    ball.velocityX = pushDirection * 4; // Stronger push for big anvils
+    ball.velocityX = pushDirection * 4 * mobileMultiplier; // Stronger push for big anvils, enhanced on mobile
   }
 }
 
@@ -1184,10 +1234,15 @@ function handleMidAirAnvilCollision(anvil) {
   const normalY = dy / distance;
 
   // Calculate impact force based on anvil properties and velocity
+  const objects = getObjects();
   const anvilMass = anvil.isBig
-    ? OBJECTS.bigAnvil.weight
-    : OBJECTS.anvil.weight;
-  const impactForce = Math.abs(anvil.velocityY) * anvilMass * 0.3;
+    ? objects.bigAnvil.weight
+    : objects.anvil.weight;
+  const baseImpactForce = Math.abs(anvil.velocityY) * anvilMass * 0.3;
+
+  // Apply mobile multiplier for big anvils to make them more impactful on mobile
+  const mobileMultiplier = isMobile && anvil.isBig ? 1.4 : 1.0;
+  const impactForce = baseImpactForce * mobileMultiplier;
 
   // Apply deflection force to ball
   const deflectionPower = Math.min(impactForce, 15); // Cap the force to prevent crazy speeds
@@ -1465,7 +1520,9 @@ function drawAnvils() {
 }
 
 function updateSeesawPhysics() {
-  seesawAngle += (targetSeesawAngle - seesawAngle) * PHYSICS.angleSmoothing;
+  const physics = getPhysics();
+  const objects = getObjects();
+  seesawAngle += (targetSeesawAngle - seesawAngle) * physics.angleSmoothing;
 
   let leftTorque = 0,
     rightTorque = 0,
@@ -1473,7 +1530,7 @@ function updateSeesawPhysics() {
     bigAnvilImpactBonus = 0;
 
   if (ball.onSeesaw) {
-    const ballTorque = Math.abs(ball.x - seesawX) * OBJECTS.ball.weight;
+    const ballTorque = Math.abs(ball.x - seesawX) * objects.ball.weight;
     if (ball.x < seesawX) leftTorque += ballTorque;
     else rightTorque += ballTorque;
   }
@@ -1482,8 +1539,8 @@ function updateSeesawPhysics() {
     if (anvil.hitSeesaw && !anvil.fallingOff) {
       anvilsOnSeesaw++;
       const anvilWeight = anvil.isBig
-        ? OBJECTS.bigAnvil.weight
-        : OBJECTS.anvil.weight;
+        ? objects.bigAnvil.weight
+        : objects.anvil.weight;
       const anvilTorque = Math.abs(anvil.x - seesawX) * anvilWeight;
 
       // Add extra torque for big anvils that just landed (for dramatic effect)
@@ -1508,12 +1565,12 @@ function updateSeesawPhysics() {
 
   targetSeesawAngle =
     netTorque *
-    PHYSICS.torqueScale *
+    physics.torqueScale *
     (anvilsOnSeesaw > 0 ? 1.2 : 1) *
     bigAnvilMultiplier;
 
   const safeMaxAngle = Math.min(
-    PHYSICS.maxAngle,
+    physics.maxAngle,
     Math.abs(Math.atan((WATER_LEVEL - seesawY - 50) / (seesawWidth / 2)))
   );
   targetSeesawAngle = Math.max(
@@ -1523,6 +1580,7 @@ function updateSeesawPhysics() {
 }
 
 function checkSeesawCollision() {
+  const physics = getPhysics();
   const bounds = getSeesawBounds();
 
   if (ball.x >= bounds.left && ball.x <= bounds.right) {
@@ -1545,7 +1603,7 @@ function checkSeesawCollision() {
       ball.velocityX += slopeForce;
 
       // Extra push at extreme angles to prevent getting stuck
-      if (Math.abs(seesawAngle) > PHYSICS.maxAngle * 0.85) {
+      if (Math.abs(seesawAngle) > physics.maxAngle * 0.85) {
         ball.velocityX += Math.sign(seesawAngle) * 0.15;
       }
     } else {
