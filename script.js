@@ -76,13 +76,42 @@ function handleResize() {
   }
 }
 
+// Handle orientation changes
+function handleOrientationChange() {
+  // Small delay to ensure orientation change is complete
+  setTimeout(() => {
+    handleResize();
+    checkOrientation();
+  }, 100);
+}
+
+// Check orientation and show/hide prompt accordingly
+function checkOrientation() {
+  if (!isMobile) return;
+
+  const orientationPrompt = document.getElementById("orientationPrompt");
+  if (!orientationPrompt) return;
+
+  // Check if device is in portrait mode
+  const isPortrait = window.innerHeight > window.innerWidth;
+
+  if (isPortrait) {
+    orientationPrompt.style.display = "flex";
+  } else {
+    orientationPrompt.style.display = "none";
+  }
+}
+
 window.addEventListener("resize", handleResize);
-window.addEventListener("orientationchange", () => {
-  setTimeout(handleResize, 100); // Delay to ensure orientation change is complete
-});
+window.addEventListener("orientationchange", handleOrientationChange);
 
 // Initialize on load
 initializeCanvas();
+
+// Check orientation on mobile devices
+if (isMobile) {
+  checkOrientation();
+}
 
 // Game constants (will be set after canvas initialization)
 let WATER_LEVEL = canvas.height - (isMobile ? 60 : 100); // Adjust for mobile
@@ -113,8 +142,8 @@ const PHYSICS = {
 // Mobile physics adjustments for consistent feel
 const MOBILE_PHYSICS = {
   gravity: 0.38, // Slightly stronger gravity on mobile for better responsiveness
-  friction: 0.96, // Less friction for more responsive movement
-  moveSpeed: 0.55, // Stronger movement for touch controls
+  friction: 0.94, // Reduced friction for more responsive movement (was 0.96)
+  moveSpeed: 0.75, // Much stronger movement for touch controls (increased from 0.55)
   angleSmoothing: 0.09,
   torqueScale: 0.00012,
   maxAngle: 0.45,
@@ -298,18 +327,28 @@ document.addEventListener("keyup", (e) => {
 let touchStartX = null;
 let touchStartY = null;
 let touchStartTime = null;
+let isTouching = false;
+let touchDirection = null; // 'left', 'right', or null
+let touchMoveThreshold = 15; // Reduced from default for more responsive swipes
 
 // Touch event handlers for mobile
 canvas.addEventListener(
   "touchstart",
   (e) => {
     if (!isMobile) return; // Only handle touch on actual mobile devices
+
+    // Don't handle touch events if orientation prompt is visible
+    const orientationPrompt = document.getElementById("orientationPrompt");
+    if (orientationPrompt && orientationPrompt.style.display === "flex") return;
+
     e.preventDefault();
     const touch = e.touches[0];
     const rect = canvas.getBoundingClientRect();
     touchStartX = (touch.clientX - rect.left) / gameScale;
     touchStartY = (touch.clientY - rect.top) / gameScale;
     touchStartTime = Date.now();
+    isTouching = true;
+    touchDirection = null;
   },
   { passive: false }
 );
@@ -318,6 +357,11 @@ canvas.addEventListener(
   "touchend",
   (e) => {
     if (!isMobile) return; // Only handle touch on actual mobile devices
+
+    // Don't handle touch events if orientation prompt is visible
+    const orientationPrompt = document.getElementById("orientationPrompt");
+    if (orientationPrompt && orientationPrompt.style.display === "flex") return;
+
     e.preventDefault();
     if (touchStartX === null || touchStartY === null) return;
 
@@ -332,7 +376,8 @@ canvas.addEventListener(
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
     // Tap (short touch with minimal movement) = jump
-    if (touchDuration < 200 && distance < 30) {
+    if (touchDuration < 200 && distance < 20) {
+      // Reduced distance threshold
       if (ball.canJump && !ball.jumpPressed) {
         ball.jumpPressed = true;
         if (ball.onSeesaw || ball.airJumps < ball.maxAirJumps) {
@@ -343,23 +388,27 @@ canvas.addEventListener(
       }
     }
     // Swipe gestures for movement
-    else if (distance > 30) {
+    else if (distance > touchMoveThreshold) {
+      // Use configurable threshold
       const physics = getPhysics();
-      const airControlFactor = ball.onSeesaw ? 1.8 : 0.8;
+      const airControlFactor = ball.onSeesaw ? 2.2 : 1.2; // Increased for mobile
 
       if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        // Horizontal swipe
+        // Horizontal swipe - increased multiplier for faster response
         if (deltaX > 0) {
-          ball.velocityX += physics.moveSpeed * airControlFactor * 2;
+          ball.velocityX += physics.moveSpeed * airControlFactor * 2.5; // Increased from 2
         } else {
-          ball.velocityX -= physics.moveSpeed * airControlFactor * 2;
+          ball.velocityX -= physics.moveSpeed * airControlFactor * 2.5; // Increased from 2
         }
       } else if (deltaY > 0) {
         // Downward swipe - fast fall
-        if (!ball.onSeesaw) ball.velocityY += 1.5;
+        if (!ball.onSeesaw) ball.velocityY += 2; // Increased from 1.5
       }
     }
 
+    // Reset touch state
+    isTouching = false;
+    touchDirection = null;
     touchStartX = null;
     touchStartY = null;
     touchStartTime = null;
@@ -367,12 +416,54 @@ canvas.addEventListener(
   { passive: false }
 );
 
-// Prevent default touch behaviors
+// Prevent default touch behaviors and handle continuous movement
 canvas.addEventListener(
   "touchmove",
   (e) => {
     if (!isMobile) return; // Only prevent default on actual mobile devices
+
+    // Don't handle touch events if orientation prompt is visible
+    const orientationPrompt = document.getElementById("orientationPrompt");
+    if (orientationPrompt && orientationPrompt.style.display === "flex") return;
+
     e.preventDefault();
+
+    // Handle continuous movement during touch drag
+    if (isTouching && touchStartX !== null && touchStartY !== null) {
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const currentX = (touch.clientX - rect.left) / gameScale;
+      const currentY = (touch.clientY - rect.top) / gameScale;
+
+      const deltaX = currentX - touchStartX;
+      const deltaY = currentY - touchStartY;
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+      // Only start continuous movement if we've moved enough
+      if (distance > touchMoveThreshold) {
+        const physics = getPhysics();
+        const continuousMoveFactor = 0.3; // Reduced factor for smooth continuous movement
+
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+          // Determine direction for continuous movement
+          if (deltaX > touchMoveThreshold && touchDirection !== "right") {
+            touchDirection = "right";
+          } else if (
+            deltaX < -touchMoveThreshold &&
+            touchDirection !== "left"
+          ) {
+            touchDirection = "left";
+          }
+
+          // Apply continuous movement
+          if (touchDirection === "right") {
+            ball.velocityX += physics.moveSpeed * continuousMoveFactor;
+          } else if (touchDirection === "left") {
+            ball.velocityX -= physics.moveSpeed * continuousMoveFactor;
+          }
+        }
+      }
+    }
   },
   { passive: false }
 );
@@ -381,11 +472,46 @@ canvas.addEventListener(
 document.addEventListener("DOMContentLoaded", () => {
   const playAgainButton = document.getElementById("playAgainButton");
   playAgainButton.addEventListener("click", resetGame);
+
+  // Prevent touch events on orientation prompt from interfering with game
+  const orientationPrompt = document.getElementById("orientationPrompt");
+  if (orientationPrompt) {
+    orientationPrompt.addEventListener(
+      "touchstart",
+      (e) => {
+        e.stopPropagation();
+      },
+      { passive: false }
+    );
+
+    orientationPrompt.addEventListener(
+      "touchend",
+      (e) => {
+        e.stopPropagation();
+      },
+      { passive: false }
+    );
+
+    orientationPrompt.addEventListener(
+      "touchmove",
+      (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      },
+      { passive: false }
+    );
+  }
 });
 
 function handleInput() {
   const physics = getPhysics();
-  const airControlFactor = ball.onSeesaw ? 1.8 : 0.8; // Strong air control for recovery
+  const airControlFactor = ball.onSeesaw
+    ? isMobile
+      ? 2.2
+      : 1.8
+    : isMobile
+    ? 1.2
+    : 0.8; // Enhanced mobile air control
   const controls = {
     ArrowLeft: () => (ball.velocityX -= physics.moveSpeed * airControlFactor),
     ArrowRight: () => (ball.velocityX += physics.moveSpeed * airControlFactor),
