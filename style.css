@@ -69,76 +69,27 @@ canvas {
   }
 
   canvas {
-    max-height: calc(100vh - 150px);
+    max-height: calc(100vh - 110px);
   }
 
-  .control-btn {
-    width: 45px;
-    height: 45px;
-    font-size: 16px;
-  }
-
-  .control-buttons {
-    gap: 6px;
-  }
-
-  .control-row {
-    gap: 8px;
+  #mobileControls {
+    font-size: 11px;
+    padding: 6px;
+    margin-top: 5px;
   }
 }
 
 /* Mobile controls instruction */
 #mobileControls {
-  margin-top: 10px;
+  margin-top: 8px;
   text-align: center;
-  max-width: 90%;
-}
-
-.control-buttons {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.control-row {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-}
-
-.control-btn {
-  width: 50px;
-  height: 50px;
-  border: 2px solid #333;
+  font-size: 12px;
+  color: #666;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #f0f0f0, #d0d0d0);
-  color: #333;
-  font-size: 18px;
-  font-weight: bold;
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-  transition: all 0.1s ease;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-}
-
-.control-btn:active {
-  background: linear-gradient(135deg, #4caf50, #45a049);
-  color: white;
-  transform: translateY(2px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-.jump-btn {
-  background: linear-gradient(135deg, #2196f3, #1976d2);
-  color: white;
-  border-color: #1976d2;
-}
-
-.jump-btn:active {
-  background: linear-gradient(135deg, #1976d2, #1565c0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  max-width: 90%;
 }
 
 #mobileControls p {
@@ -169,21 +120,13 @@ canvas {
   }
 
   canvas {
-    max-height: calc(100vh - 80px);
+    max-height: calc(100vh - 60px);
   }
 
-  .control-btn {
-    width: 40px;
-    height: 40px;
-    font-size: 14px;
-  }
-
-  .control-buttons {
-    gap: 4px;
-  }
-
-  .control-row {
-    gap: 6px;
+  #mobileControls {
+    font-size: 10px;
+    padding: 4px;
+    margin-top: 2px;
   }
 }
 
@@ -193,10 +136,9 @@ canvas {
     font-size: clamp(16px, 8vw, 24px);
   }
 
-  .control-btn {
-    width: 40px;
-    height: 40px;
-    font-size: 14px;
+  #mobileControls {
+    font-size: 10px;
+    padding: 4px;
   }
 
   .game-over-content {

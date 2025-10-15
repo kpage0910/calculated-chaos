@@ -9,33 +9,20 @@ let baseHeight = 900;
 
 // Initialize canvas size and scaling
 function initializeCanvas() {
-  try {
-    const maxWidth = window.innerWidth - 20;
-    const maxHeight = window.innerHeight - 80;
+  const maxWidth = window.innerWidth - 20;
+  const maxHeight = window.innerHeight - 80;
 
-    const scaleX = maxWidth / baseWidth;
-    const scaleY = maxHeight / baseHeight;
-    gameScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond original size
+  const scaleX = maxWidth / baseWidth;
+  const scaleY = maxHeight / baseHeight;
+  gameScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond original size
 
-    canvas.width = baseWidth;
-    canvas.height = baseHeight;
-    canvas.style.width = baseWidth * gameScale + "px";
-    canvas.style.height = baseHeight * gameScale + "px";
+  canvas.width = baseWidth;
+  canvas.height = baseHeight;
+  canvas.style.width = baseWidth * gameScale + "px";
+  canvas.style.height = baseHeight * gameScale + "px";
 
-    // Disable image smoothing for crisp pixel art
-    ctx.imageSmoothingEnabled = false;
-
-    console.log(
-      "Canvas initialized:",
-      canvas.width,
-      "x",
-      canvas.height,
-      "scale:",
-      gameScale
-    );
-  } catch (error) {
-    console.error("Error initializing canvas:", error);
-  }
+  // Disable image smoothing for crisp pixel art
+  ctx.imageSmoothingEnabled = false;
 }
 
 // Handle window resize
@@ -68,17 +55,6 @@ const isMobile =
   ) ||
   (navigator.maxTouchPoints && navigator.maxTouchPoints > 2) ||
   window.innerWidth <= 768; // Also consider small screens as mobile
-
-console.log(
-  "Mobile detection:",
-  isMobile,
-  "User agent:",
-  navigator.userAgent,
-  "Touch points:",
-  navigator.maxTouchPoints,
-  "Screen width:",
-  window.innerWidth
-);
 
 // Adjust game difficulty for mobile
 if (isMobile) {
@@ -264,103 +240,95 @@ document.addEventListener("keyup", (e) => {
   keys[e.key] = false;
 });
 
-// Mobile button controls
-let mobileControls = {
-  left: false,
-  right: false,
-  up: false,
-  down: false,
-};
+// Touch controls for mobile
+let touchStartX = null;
+let touchStartY = null;
+let touchStartTime = null;
 
-// Play Again button event listener and mobile controls
+// Touch event handlers for mobile
+canvas.addEventListener(
+  "touchstart",
+  (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    touchStartX = (touch.clientX - rect.left) / gameScale;
+    touchStartY = (touch.clientY - rect.top) / gameScale;
+    touchStartTime = Date.now();
+  },
+  { passive: false }
+);
+
+canvas.addEventListener(
+  "touchend",
+  (e) => {
+    e.preventDefault();
+    if (touchStartX === null || touchStartY === null) return;
+
+    const touchDuration = Date.now() - touchStartTime;
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.changedTouches[0];
+    const touchEndX = (touch.clientX - rect.left) / gameScale;
+    const touchEndY = (touch.clientY - rect.top) / gameScale;
+
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // Tap (short touch with minimal movement) = jump
+    if (touchDuration < 200 && distance < 30) {
+      if (ball.canJump && !ball.jumpPressed) {
+        ball.jumpPressed = true;
+        if (ball.onSeesaw || ball.airJumps < ball.maxAirJumps) {
+          ball.velocityY = ball.onSeesaw ? BALL_JUMP_POWER : AIR_JUMP_POWER;
+          ball.onSeesaw = false;
+          if (!ball.onSeesaw) ball.airJumps++;
+        }
+      }
+    }
+    // Swipe gestures for movement
+    else if (distance > 30) {
+      const physics = getPhysics();
+      const airControlFactor = ball.onSeesaw ? 1.8 : 0.8;
+
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        // Horizontal swipe
+        if (deltaX > 0) {
+          ball.velocityX += physics.moveSpeed * airControlFactor * 2;
+        } else {
+          ball.velocityX -= physics.moveSpeed * airControlFactor * 2;
+        }
+      } else if (deltaY > 0) {
+        // Downward swipe - fast fall
+        if (!ball.onSeesaw) ball.velocityY += 1.5;
+      }
+    }
+
+    touchStartX = null;
+    touchStartY = null;
+    touchStartTime = null;
+  },
+  { passive: false }
+);
+
+// Prevent default touch behaviors
+canvas.addEventListener(
+  "touchmove",
+  (e) => {
+    e.preventDefault();
+  },
+  { passive: false }
+);
+
+// Play Again button event listener
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("DOM loaded, initializing controls...");
-
   const playAgainButton = document.getElementById("playAgainButton");
   playAgainButton.addEventListener("click", resetGame);
-
-  // Mobile control buttons
-  const leftBtn = document.getElementById("leftBtn");
-  const rightBtn = document.getElementById("rightBtn");
-  const jumpBtn = document.getElementById("jumpBtn");
-  const downBtn = document.getElementById("downBtn");
-
-  console.log("Mobile control buttons found:", {
-    leftBtn: !!leftBtn,
-    rightBtn: !!rightBtn,
-    jumpBtn: !!jumpBtn,
-    downBtn: !!downBtn,
-  });
-
-  if (leftBtn && rightBtn && jumpBtn && downBtn) {
-    console.log("Initializing mobile controls...");
-
-    // Touch start events
-    leftBtn.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      mobileControls.left = true;
-    });
-    rightBtn.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      mobileControls.right = true;
-    });
-    jumpBtn.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      mobileControls.up = true;
-    });
-    downBtn.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      mobileControls.down = true;
-    });
-
-    // Touch end events
-    leftBtn.addEventListener("touchend", (e) => {
-      e.preventDefault();
-      mobileControls.left = false;
-    });
-    rightBtn.addEventListener("touchend", (e) => {
-      e.preventDefault();
-      mobileControls.right = false;
-    });
-    jumpBtn.addEventListener("touchend", (e) => {
-      e.preventDefault();
-      mobileControls.up = false;
-      ball.jumpPressed = false;
-    });
-    downBtn.addEventListener("touchend", (e) => {
-      e.preventDefault();
-      mobileControls.down = false;
-    });
-
-    // Also handle mouse events for testing on desktop
-    leftBtn.addEventListener("mousedown", () => (mobileControls.left = true));
-    leftBtn.addEventListener("mouseup", () => (mobileControls.left = false));
-    rightBtn.addEventListener("mousedown", () => (mobileControls.right = true));
-    rightBtn.addEventListener("mouseup", () => (mobileControls.right = false));
-    jumpBtn.addEventListener("mousedown", () => (mobileControls.up = true));
-    jumpBtn.addEventListener("mouseup", () => {
-      mobileControls.up = false;
-      ball.jumpPressed = false;
-    });
-    downBtn.addEventListener("mousedown", () => (mobileControls.down = true));
-    downBtn.addEventListener("mouseup", () => (mobileControls.down = false));
-
-    // Prevent context menu on long press
-    [leftBtn, rightBtn, jumpBtn, downBtn].forEach((btn) => {
-      btn.addEventListener("contextmenu", (e) => e.preventDefault());
-    });
-
-    console.log("Mobile controls initialized successfully");
-  } else {
-    console.error("Some mobile control buttons not found!");
-  }
 });
 
 function handleInput() {
   const physics = getPhysics();
   const airControlFactor = ball.onSeesaw ? 1.8 : 0.8; // Strong air control for recovery
-
-  // Handle keyboard input
   const controls = {
     ArrowLeft: () => (ball.velocityX -= physics.moveSpeed * airControlFactor),
     ArrowRight: () => (ball.velocityX += physics.moveSpeed * airControlFactor),
@@ -383,7 +351,7 @@ function handleInput() {
       ball.jumpPressed = currentlyPressed;
     },
     ArrowDown: () => {
-      if (ball.onSeesaw) ball.velocityY += physics.moveSpeed;
+      if (!ball.onSeesaw) ball.velocityY += 0.8; // Fast fall
     },
   };
 
@@ -391,34 +359,8 @@ function handleInput() {
     if (keys[key]) action();
   });
 
-  // Handle mobile controls
-  if (mobileControls.left) {
-    ball.velocityX -= physics.moveSpeed * airControlFactor;
-  }
-  if (mobileControls.right) {
-    ball.velocityX += physics.moveSpeed * airControlFactor;
-  }
-  if (mobileControls.up) {
-    if (!ball.jumpPressed) {
-      if (ball.onSeesaw && ball.canJump) {
-        // Regular jump from seesaw - full power
-        ball.velocityY = BALL_JUMP_POWER;
-        ball.canJump = false;
-        ball.airJumps = 0; // Reset air jumps when jumping from seesaw
-      } else if (!ball.onSeesaw && ball.airJumps < ball.maxAirJumps) {
-        // Air jump - weaker power, limited uses
-        ball.velocityY = AIR_JUMP_POWER;
-        ball.airJumps++;
-      }
-    }
-    ball.jumpPressed = true;
-  }
-  if (mobileControls.down) {
-    if (ball.onSeesaw) ball.velocityY += physics.moveSpeed;
-  }
-
-  // Handle jump key/button release
-  if (!keys["ArrowUp"] && !mobileControls.up) {
+  // Handle jump key release
+  if (!keys["ArrowUp"]) {
     ball.jumpPressed = false;
   }
 }
