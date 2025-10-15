@@ -28,21 +28,31 @@ function initializeCanvas() {
   const maxWidth = window.innerWidth - 20;
   const maxHeight = window.innerHeight - 100; // More space for UI elements
 
-  // Use smaller base dimensions on mobile for better performance
-  const actualBaseWidth = isMobile ? Math.min(600, maxWidth) : baseWidth;
-  const actualBaseHeight = isMobile ? Math.min(500, maxHeight) : baseHeight; // Increased height for mobile
+  if (isMobile) {
+    // Mobile: Use much smaller base dimensions that fit the screen better
+    const mobileWidth = Math.min(400, maxWidth);
+    const mobileHeight = Math.min(600, maxHeight);
 
-  // Scale to fit available space
-  const scaleX = maxWidth / actualBaseWidth;
-  const scaleY = maxHeight / actualBaseHeight;
-  gameScale = Math.min(scaleX, scaleY, isMobile ? 1.2 : 1); // Allow slight upscaling on mobile
+    canvas.width = mobileWidth;
+    canvas.height = mobileHeight;
 
-  canvas.width = actualBaseWidth;
-  canvas.height = actualBaseHeight;
+    // No additional scaling on mobile - use actual size
+    canvas.style.width = mobileWidth + "px";
+    canvas.style.height = mobileHeight + "px";
+    gameScale = 1;
+  } else {
+    // Desktop: Keep original scaling behavior
+    const scaleX = maxWidth / baseWidth;
+    const scaleY = maxHeight / baseHeight;
+    gameScale = Math.min(scaleX, scaleY, 1);
 
-  // Apply scaling for display
-  canvas.style.width = actualBaseWidth * gameScale + "px";
-  canvas.style.height = actualBaseHeight * gameScale + "px";
+    canvas.width = baseWidth;
+    canvas.height = baseHeight;
+
+    // Apply scaling for display
+    canvas.style.width = baseWidth * gameScale + "px";
+    canvas.style.height = baseHeight * gameScale + "px";
+  }
 
   // Disable image smoothing for crisp pixel art
   ctx.imageSmoothingEnabled = false;
@@ -63,9 +73,9 @@ function initializeCanvas() {
 function handleResize() {
   initializeCanvas();
   // Recalculate game constants based on new canvas size
-  WATER_LEVEL = canvas.height - (isMobile ? 60 : 100); // Adjust for mobile
+  WATER_LEVEL = canvas.height - (isMobile ? 40 : 100); // Smaller water area on mobile
   seesawX = canvas.width / 2;
-  seesawY = WATER_LEVEL - (isMobile ? 150 : 250); // Adjust seesaw position for mobile
+  seesawY = WATER_LEVEL - (isMobile ? 80 : 250); // Much closer to water on mobile
   seesawWidth = getObjects().seesaw.width;
   seesawHeight = getObjects().seesaw.height;
 
@@ -81,25 +91,7 @@ function handleOrientationChange() {
   // Small delay to ensure orientation change is complete
   setTimeout(() => {
     handleResize();
-    checkOrientation();
   }, 100);
-}
-
-// Check orientation and show/hide prompt accordingly
-function checkOrientation() {
-  if (!isMobile) return;
-
-  const orientationPrompt = document.getElementById("orientationPrompt");
-  if (!orientationPrompt) return;
-
-  // Check if device is in portrait mode
-  const isPortrait = window.innerHeight > window.innerWidth;
-
-  if (isPortrait) {
-    orientationPrompt.style.display = "flex";
-  } else {
-    orientationPrompt.style.display = "none";
-  }
 }
 
 window.addEventListener("resize", handleResize);
@@ -108,13 +100,8 @@ window.addEventListener("orientationchange", handleOrientationChange);
 // Initialize on load
 initializeCanvas();
 
-// Check orientation on mobile devices
-if (isMobile) {
-  checkOrientation();
-}
-
 // Game constants (will be set after canvas initialization)
-let WATER_LEVEL = canvas.height - (isMobile ? 60 : 100); // Adjust for mobile
+let WATER_LEVEL = canvas.height - (isMobile ? 40 : 100); // Smaller water area on mobile
 let ANVIL_SPAWN_RATE = 180; // Will be adjusted for mobile
 let BIG_ANVIL_SPAWN_RATE = 400; // Initialize this early
 const BALL_JUMP_POWER = -12;
@@ -163,10 +150,10 @@ const OBJECTS = {
 
 // Mobile object adjustments for consistent feel
 const MOBILE_OBJECTS = {
-  ball: { radius: 15, weight: 1 },
-  anvil: { width: 25, height: 35, weight: 10, spawnVelocity: 2.8 }, // Slightly faster on mobile
-  bigAnvil: { width: 45, height: 60, weight: 25, spawnVelocity: 3.3 }, // Slightly faster on mobile
-  seesaw: { width: canvas.width * 0.8, height: 25 }, // Slightly wider seesaw on mobile for easier gameplay
+  ball: { radius: 12, weight: 1 }, // Slightly smaller ball
+  anvil: { width: 20, height: 28, weight: 10, spawnVelocity: 2.8 }, // Smaller anvils
+  bigAnvil: { width: 35, height: 48, weight: 25, spawnVelocity: 3.3 }, // Smaller big anvils
+  seesaw: { width: canvas.width * 0.75, height: 20 }, // Slightly smaller seesaw
 };
 
 // Get appropriate object values based on device
@@ -178,7 +165,7 @@ function getObjects() {
 let seesawAngle = 0;
 let targetSeesawAngle = 0;
 let seesawX = canvas.width / 2;
-let seesawY = WATER_LEVEL - (isMobile ? 150 : 250); // Adjust for mobile
+let seesawY = WATER_LEVEL - (isMobile ? 80 : 250); // Much closer to water on mobile
 let seesawWidth = OBJECTS.seesaw.width;
 let seesawHeight = OBJECTS.seesaw.height;
 
@@ -337,10 +324,6 @@ canvas.addEventListener(
   (e) => {
     if (!isMobile) return; // Only handle touch on actual mobile devices
 
-    // Don't handle touch events if orientation prompt is visible
-    const orientationPrompt = document.getElementById("orientationPrompt");
-    if (orientationPrompt && orientationPrompt.style.display === "flex") return;
-
     e.preventDefault();
     const touch = e.touches[0];
     const rect = canvas.getBoundingClientRect();
@@ -357,10 +340,6 @@ canvas.addEventListener(
   "touchend",
   (e) => {
     if (!isMobile) return; // Only handle touch on actual mobile devices
-
-    // Don't handle touch events if orientation prompt is visible
-    const orientationPrompt = document.getElementById("orientationPrompt");
-    if (orientationPrompt && orientationPrompt.style.display === "flex") return;
 
     e.preventDefault();
     if (touchStartX === null || touchStartY === null) return;
@@ -422,10 +401,6 @@ canvas.addEventListener(
   (e) => {
     if (!isMobile) return; // Only prevent default on actual mobile devices
 
-    // Don't handle touch events if orientation prompt is visible
-    const orientationPrompt = document.getElementById("orientationPrompt");
-    if (orientationPrompt && orientationPrompt.style.display === "flex") return;
-
     e.preventDefault();
 
     // Handle continuous movement during touch drag
@@ -472,35 +447,6 @@ canvas.addEventListener(
 document.addEventListener("DOMContentLoaded", () => {
   const playAgainButton = document.getElementById("playAgainButton");
   playAgainButton.addEventListener("click", resetGame);
-
-  // Prevent touch events on orientation prompt from interfering with game
-  const orientationPrompt = document.getElementById("orientationPrompt");
-  if (orientationPrompt) {
-    orientationPrompt.addEventListener(
-      "touchstart",
-      (e) => {
-        e.stopPropagation();
-      },
-      { passive: false }
-    );
-
-    orientationPrompt.addEventListener(
-      "touchend",
-      (e) => {
-        e.stopPropagation();
-      },
-      { passive: false }
-    );
-
-    orientationPrompt.addEventListener(
-      "touchmove",
-      (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      },
-      { passive: false }
-    );
-  }
 });
 
 function handleInput() {
