@@ -29,9 +29,9 @@ function initializeCanvas() {
   const maxHeight = window.innerHeight - 100; // More space for UI elements
 
   if (isMobile) {
-    // Mobile: Use much smaller base dimensions that fit the screen better
-    const mobileWidth = Math.min(400, maxWidth);
-    const mobileHeight = Math.min(600, maxHeight);
+    // Mobile: Use larger base dimensions for more space
+    const mobileWidth = Math.min(500, maxWidth); // Increased from 400
+    const mobileHeight = Math.min(700, maxHeight); // Increased from 600
 
     canvas.width = mobileWidth;
     canvas.height = mobileHeight;
@@ -52,9 +52,7 @@ function initializeCanvas() {
     // Apply scaling for display
     canvas.style.width = baseWidth * gameScale + "px";
     canvas.style.height = baseHeight * gameScale + "px";
-  }
-
-  // Disable image smoothing for crisp pixel art
+  } // Disable image smoothing for crisp pixel art
   ctx.imageSmoothingEnabled = false;
 
   console.log(
@@ -72,12 +70,20 @@ function initializeCanvas() {
 // Handle window resize
 function handleResize() {
   initializeCanvas();
-  // Recalculate game constants based on new canvas size
-  WATER_LEVEL = canvas.height - (isMobile ? 40 : 100); // Smaller water area on mobile
+
+  // Recalculate all scaled game constants based on new canvas size
+  WATER_LEVEL =
+    canvas.height - (isMobile ? Math.max(30, canvas.height * 0.08) : 100);
   seesawX = canvas.width / 2;
-  seesawY = WATER_LEVEL - (isMobile ? 80 : 250); // Much closer to water on mobile
-  seesawWidth = getObjects().seesaw.width;
-  seesawHeight = getObjects().seesaw.height;
+  seesawY = WATER_LEVEL - (isMobile ? Math.max(60, canvas.height * 0.12) : 250);
+
+  // Update object sizes based on new canvas dimensions
+  const objects = getObjects();
+  seesawWidth = objects.seesaw.width;
+  seesawHeight = objects.seesaw.height;
+
+  // Update ball radius to match new scale
+  ball.radius = objects.ball.radius;
 
   // Reposition ball if it's on the seesaw
   if (ball.onSeesaw) {
@@ -101,7 +107,8 @@ window.addEventListener("orientationchange", handleOrientationChange);
 initializeCanvas();
 
 // Game constants (will be set after canvas initialization)
-let WATER_LEVEL = canvas.height - (isMobile ? 40 : 100); // Smaller water area on mobile
+let WATER_LEVEL =
+  canvas.height - (isMobile ? Math.max(30, canvas.height * 0.08) : 100);
 let ANVIL_SPAWN_RATE = 180; // Will be adjusted for mobile
 let BIG_ANVIL_SPAWN_RATE = 400; // Initialize this early
 const BALL_JUMP_POWER = -12;
@@ -148,12 +155,25 @@ const OBJECTS = {
   seesaw: { width: canvas.width * 0.7, height: 25 },
 };
 
-// Mobile object adjustments for consistent feel
+// Mobile object adjustments - scale based on canvas size
 const MOBILE_OBJECTS = {
-  ball: { radius: 12, weight: 1 }, // Slightly smaller ball
-  anvil: { width: 20, height: 28, weight: 10, spawnVelocity: 2.8 }, // Smaller anvils
-  bigAnvil: { width: 35, height: 48, weight: 25, spawnVelocity: 3.3 }, // Smaller big anvils
-  seesaw: { width: canvas.width * 0.75, height: 20 }, // Slightly smaller seesaw
+  ball: { radius: Math.max(10, canvas.width * 0.025), weight: 1 }, // Scale with canvas width
+  anvil: {
+    width: Math.max(15, canvas.width * 0.04),
+    height: Math.max(20, canvas.width * 0.055),
+    weight: 10,
+    spawnVelocity: 2.8,
+  },
+  bigAnvil: {
+    width: Math.max(25, canvas.width * 0.07),
+    height: Math.max(35, canvas.width * 0.095),
+    weight: 25,
+    spawnVelocity: 3.3,
+  },
+  seesaw: {
+    width: canvas.width * 0.75,
+    height: Math.max(15, canvas.height * 0.025),
+  },
 };
 
 // Get appropriate object values based on device
@@ -165,7 +185,8 @@ function getObjects() {
 let seesawAngle = 0;
 let targetSeesawAngle = 0;
 let seesawX = canvas.width / 2;
-let seesawY = WATER_LEVEL - (isMobile ? 80 : 250); // Much closer to water on mobile
+let seesawY =
+  WATER_LEVEL - (isMobile ? Math.max(60, canvas.height * 0.12) : 250);
 let seesawWidth = OBJECTS.seesaw.width;
 let seesawHeight = OBJECTS.seesaw.height;
 
@@ -220,10 +241,10 @@ const WATER_POCKET = {
   pushForce: -15, // Upward force when ball touches
 };
 
-// Mobile water pocket adjustments for smaller screens
+// Mobile water pocket adjustments - scale based on canvas size
 const MOBILE_WATER_POCKET = {
-  width: 60, // Even smaller for mobile to avoid seesaw overlap
-  maxHeight: 120,
+  width: Math.max(50, canvas.width * 0.15), // Scale with canvas width
+  maxHeight: Math.max(80, canvas.height * 0.15), // Scale with canvas height
   riseSpeed: 4,
   fallSpeed: 2,
   lifetime: 180,
