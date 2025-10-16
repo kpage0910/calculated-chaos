@@ -302,7 +302,11 @@ function updateBall() {
     } else {
       // Keep the squished ball on the seesaw surface if it was squished there
       if (ball.onSeesaw) {
-        const bounds = getSeesawBounds();
+        const bounds = {
+          left: seesawX - seesawWidth / 2,
+          right: seesawX + seesawWidth / 2,
+          top: seesawY - seesawHeight / 2,
+        };
         if (ball.x >= bounds.left && ball.x <= bounds.right) {
           const distanceFromCenter = ball.x - seesawX;
           const seesawHeightAtBallX =
@@ -483,7 +487,11 @@ function updateSplash() {
 
 function spawnWaterPocketOnSide(side) {
   // Calculate seesaw bounds to avoid spawning under it
-  const seesawBounds = getSeesawBounds();
+  const seesawBounds = {
+    left: seesawX - seesawWidth / 2,
+    right: seesawX + seesawWidth / 2,
+    top: seesawY - seesawHeight / 2,
+  };
   const seesawBuffer = 50;
   const avoidLeft = seesawBounds.left - seesawBuffer;
   const avoidRight = seesawBounds.right + seesawBuffer;
@@ -557,7 +565,7 @@ function updateWaterPockets() {
   // Update existing pockets
   for (let i = waterPockets.length - 1; i >= 0; i--) {
     const pocket = waterPockets[i];
-    const waterPocket = getWaterPocket();
+    const waterPocket = WATER_POCKET;
     pocket.timer++;
 
     switch (pocket.phase) {
@@ -923,14 +931,6 @@ function checkSweptCollisionWithSeesaw(anvil, bounds, velocity) {
   return false;
 }
 
-function getSeesawBounds() {
-  return {
-    left: seesawX - seesawWidth / 2,
-    right: seesawX + seesawWidth / 2,
-    top: seesawY - seesawHeight / 2,
-  };
-}
-
 function calculateSlideDirection() {
   return seesawAngle > 0.05 ? 1 : seesawAngle < -0.05 ? -1 : 0;
 }
@@ -986,7 +986,11 @@ function updateAnvilPhysics(anvil) {
   anvil.velocityY = Math.min(anvil.velocityY, maxVelocity);
 
   // Check for seesaw collision BEFORE moving the anvil
-  const bounds = getSeesawBounds();
+  const bounds = {
+    left: seesawX - seesawWidth / 2,
+    right: seesawX + seesawWidth / 2,
+    top: seesawY - seesawHeight / 2,
+  };
   const isOverSeesaw = anvil.x >= bounds.left && anvil.x <= bounds.right;
 
   if (isOverSeesaw && !anvil.hitSeesaw && !anvil.fallingOff) {
@@ -1119,7 +1123,7 @@ function handleMidAirAnvilCollision(anvil) {
   const normalY = dy / distance;
 
   // Calculate impact force based on anvil properties and velocity
-  const objects = getObjects();
+  const objects = OBJECTS;
   const anvilMass = anvil.isBig
     ? objects.bigAnvil.weight
     : objects.anvil.weight;
@@ -1183,7 +1187,11 @@ function handleBallAnvilInteraction(anvil) {
 }
 
 function updateAnvilSeesawInteraction(anvil, i) {
-  const bounds = getSeesawBounds();
+  const bounds = {
+    left: seesawX - seesawWidth / 2,
+    right: seesawX + seesawWidth / 2,
+    top: seesawY - seesawHeight / 2,
+  };
 
   // Only handle anvils that are already on the seesaw
   if (anvil.hitSeesaw && !anvil.fallingOff) {
@@ -1463,8 +1471,11 @@ function updateSeesawPhysics() {
 }
 
 function checkSeesawCollision() {
-  const physics = getPhysics();
-  const bounds = getSeesawBounds();
+  const bounds = {
+    left: seesawX - seesawWidth / 2,
+    right: seesawX + seesawWidth / 2,
+    top: seesawY - seesawHeight / 2,
+  };
 
   if (ball.x >= bounds.left && ball.x <= bounds.right) {
     const distanceFromCenter = ball.x - seesawX;
@@ -1486,7 +1497,7 @@ function checkSeesawCollision() {
       ball.velocityX += slopeForce;
 
       // Extra push at extreme angles to prevent getting stuck
-      if (Math.abs(seesawAngle) > physics.maxAngle * 0.85) {
+      if (Math.abs(seesawAngle) > PHYSICS.maxAngle * 0.85) {
         ball.velocityX += Math.sign(seesawAngle) * 0.15;
       }
     } else {
