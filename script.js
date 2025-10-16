@@ -37,32 +37,6 @@ function initializeCanvas() {
   );
 }
 
-// Handle window resize
-function handleResize() {
-  initializeCanvas();
-
-  // Recalculate all scaled game constants based on new canvas size
-  WATER_LEVEL = canvas.height - 100;
-  seesawX = canvas.width / 2;
-  seesawY = WATER_LEVEL - 250;
-
-  // Update object sizes based on new canvas dimensions
-  const objects = OBJECTS;
-  seesawWidth = objects.seesaw.width;
-  seesawHeight = objects.seesaw.height;
-
-  // Update ball radius to match new scale
-  ball.radius = objects.ball.radius;
-
-  // Reposition ball if it's on the seesaw
-  if (ball.onSeesaw) {
-    ball.x = seesawX;
-    ball.y = seesawY - 50;
-  }
-}
-
-window.addEventListener("resize", handleResize);
-
 // Initialize on load
 initializeCanvas();
 
