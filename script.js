@@ -2,39 +2,15 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// Game scaling variables
-let gameScale = 1;
-let baseWidth = 1500;
-let baseHeight = 900;
-
-// Initialize canvas size and scaling
+// Initialize canvas size - simplified for desktop only
 function initializeCanvas() {
-  const maxWidth = window.innerWidth - 20;
-  const maxHeight = window.innerHeight - 100;
-
-  // Desktop scaling
-  const scaleX = maxWidth / baseWidth;
-  const scaleY = maxHeight / baseHeight;
-  gameScale = Math.min(scaleX, scaleY, 1);
-
-  canvas.width = baseWidth;
-  canvas.height = baseHeight;
-
-  // Apply scaling for display
-  canvas.style.width = baseWidth * gameScale + "px";
-  canvas.style.height = baseHeight * gameScale + "px";
+  canvas.width = 1500;
+  canvas.height = 900;
 
   // Disable image smoothing for crisp pixel art
   ctx.imageSmoothingEnabled = false;
 
-  console.log(
-    "Canvas initialized:",
-    canvas.width,
-    "x",
-    canvas.height,
-    "Scale:",
-    gameScale
-  );
+  console.log("Canvas initialized:", canvas.width, "x", canvas.height);
 }
 
 // Initialize on load
