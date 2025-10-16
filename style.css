@@ -9,12 +9,11 @@ body {
   justify-content: flex-start;
   align-items: center;
   box-sizing: border-box;
-  overflow-x: hidden;
 }
 
 #gameTitle {
   margin: 0 0 10px 0;
-  font-size: clamp(20px, 4vw, 48px);
+  font-size: 48px;
   font-weight: bold;
   color: #2a2a2a;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
@@ -26,119 +25,9 @@ canvas {
   border: 1px solid black;
   background-color: white;
   display: block;
-  touch-action: manipulation;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
   max-width: 100%;
   height: auto;
   flex-shrink: 1;
-}
-
-/* Mobile-specific adjustments - only for actual touch devices */
-@media (hover: none) and (pointer: coarse) {
-  body {
-    padding: 5px;
-    overflow: hidden;
-    justify-content: flex-start;
-    min-height: 100vh;
-    height: 100vh;
-  }
-
-  #gameTitle {
-    margin: 0 0 5px 0;
-    font-size: clamp(14px, 4vw, 20px);
-    flex-shrink: 0;
-  }
-
-  canvas {
-    max-width: calc(100vw - 10px);
-    max-height: calc(100vh - 80px);
-    width: auto !important;
-    height: auto !important;
-  }
-
-  .mobile-only {
-    display: block !important;
-  }
-}
-
-/* Smaller mobile screens */
-@media (hover: none) and (pointer: coarse) and (max-width: 480px) {
-  body {
-    padding: 3px;
-  }
-
-  #gameTitle {
-    font-size: clamp(12px, 4vw, 18px);
-    margin: 0 0 3px 0;
-  }
-
-  canvas {
-    max-height: calc(100vh - 70px);
-    max-width: calc(100vw - 6px);
-  }
-
-  #mobileControls {
-    font-size: 10px;
-    padding: 4px;
-    margin-top: 3px;
-  }
-}
-
-/* Mobile controls instruction */
-#mobileControls {
-  margin-top: 5px;
-  text-align: center;
-  font-size: 11px;
-  color: #666;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 6px;
-  border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  max-width: 95%;
-  display: none;
-  flex-shrink: 0;
-}
-
-#mobileControls p {
-  margin: 2px 0;
-  line-height: 1.3;
-}
-
-.mobile-only {
-  display: none;
-}
-
-/* Show mobile controls only on actual touch devices */
-@media (hover: none) and (pointer: coarse) {
-  .mobile-only {
-    display: block !important;
-  }
-}
-
-/* Show mobile controls only on actual touch devices */
-@media (hover: none) and (pointer: coarse) {
-  .mobile-only {
-    display: block !important;
-  }
-}
-
-/* Very small mobile screens */
-@media (hover: none) and (pointer: coarse) and (max-width: 320px) {
-  #gameTitle {
-    font-size: clamp(12px, 6vw, 16px);
-  }
-
-  #mobileControls {
-    font-size: 9px;
-    padding: 3px;
-  }
-
-  .game-over-content {
-    padding: 20px 15px;
-    margin: 10px;
-  }
 }
 
 /* Game Over Screen */
@@ -173,7 +62,7 @@ canvas {
 
 .game-over-content h2 {
   margin: 0 0 30px 0;
-  font-size: clamp(32px, 6vw, 48px);
+  font-size: 48px;
   color: #ff0000;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
   font-weight: bold;
@@ -181,7 +70,7 @@ canvas {
 
 #survivalTimeDisplay {
   margin: 0 0 25px 0;
-  font-size: clamp(18px, 4vw, 24px);
+  font-size: 24px;
   color: #333;
   font-weight: bold;
   background: linear-gradient(135deg, #4caf50, #45a049);
@@ -195,7 +84,7 @@ canvas {
   color: white;
   border: none;
   padding: 15px 30px;
-  font-size: clamp(18px, 4vw, 24px);
+  font-size: 24px;
   font-weight: bold;
   border-radius: 10px;
   cursor: pointer;
@@ -212,28 +101,4 @@ canvas {
 #playAgainButton:active {
   transform: translateY(0);
   box-shadow: 0 2px 10px rgba(76, 175, 80, 0.3);
-}
-
-@media (hover: none) and (pointer: coarse) {
-  .game-over-content {
-    padding: 30px 20px;
-    margin: 20px;
-    width: calc(100% - 40px);
-    max-width: 400px;
-  }
-
-  .game-over-content h2 {
-    margin: 0 0 20px 0;
-  }
-
-  #survivalTimeDisplay {
-    margin: 0 0 20px 0;
-    font-size: clamp(16px, 5vw, 20px);
-  }
-
-  #playAgainButton {
-    padding: 12px 25px;
-    width: 100%;
-    max-width: 200px;
-  }
 }

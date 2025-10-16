@@ -2,22 +2,6 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// Detect if on mobile device (moved here to avoid hoisting issues)
-const isMobile =
-  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  ) ||
-  (navigator.maxTouchPoints &&
-    navigator.maxTouchPoints > 2 &&
-    navigator.platform !== "MacIntel");
-
-console.log(
-  "Mobile detection:",
-  isMobile,
-  "Screen size:",
-  window.innerWidth + "x" + window.innerHeight
-);
-
 // Game scaling variables
 let gameScale = 1;
 let baseWidth = 1500;
@@ -26,33 +10,21 @@ let baseHeight = 900;
 // Initialize canvas size and scaling
 function initializeCanvas() {
   const maxWidth = window.innerWidth - 20;
-  const maxHeight = window.innerHeight - 100; // More space for UI elements
+  const maxHeight = window.innerHeight - 100;
 
-  if (isMobile) {
-    // Mobile: Use larger base dimensions for more space
-    const mobileWidth = Math.min(500, maxWidth); // Increased from 400
-    const mobileHeight = Math.min(700, maxHeight); // Increased from 600
+  // Desktop scaling
+  const scaleX = maxWidth / baseWidth;
+  const scaleY = maxHeight / baseHeight;
+  gameScale = Math.min(scaleX, scaleY, 1);
 
-    canvas.width = mobileWidth;
-    canvas.height = mobileHeight;
+  canvas.width = baseWidth;
+  canvas.height = baseHeight;
 
-    // No additional scaling on mobile - use actual size
-    canvas.style.width = mobileWidth + "px";
-    canvas.style.height = mobileHeight + "px";
-    gameScale = 1;
-  } else {
-    // Desktop: Keep original scaling behavior
-    const scaleX = maxWidth / baseWidth;
-    const scaleY = maxHeight / baseHeight;
-    gameScale = Math.min(scaleX, scaleY, 1);
+  // Apply scaling for display
+  canvas.style.width = baseWidth * gameScale + "px";
+  canvas.style.height = baseHeight * gameScale + "px";
 
-    canvas.width = baseWidth;
-    canvas.height = baseHeight;
-
-    // Apply scaling for display
-    canvas.style.width = baseWidth * gameScale + "px";
-    canvas.style.height = baseHeight * gameScale + "px";
-  } // Disable image smoothing for crisp pixel art
+  // Disable image smoothing for crisp pixel art
   ctx.imageSmoothingEnabled = false;
 
   console.log(
@@ -61,9 +33,7 @@ function initializeCanvas() {
     "x",
     canvas.height,
     "Scale:",
-    gameScale,
-    "Mobile:",
-    isMobile
+    gameScale
   );
 }
 
@@ -72,13 +42,12 @@ function handleResize() {
   initializeCanvas();
 
   // Recalculate all scaled game constants based on new canvas size
-  WATER_LEVEL =
-    canvas.height - (isMobile ? Math.max(30, canvas.height * 0.08) : 100);
+  WATER_LEVEL = canvas.height - 100;
   seesawX = canvas.width / 2;
-  seesawY = WATER_LEVEL - (isMobile ? Math.max(60, canvas.height * 0.12) : 250);
+  seesawY = WATER_LEVEL - 250;
 
   // Update object sizes based on new canvas dimensions
-  const objects = getObjects();
+  const objects = OBJECTS;
   seesawWidth = objects.seesaw.width;
   seesawHeight = objects.seesaw.height;
 
@@ -92,37 +61,21 @@ function handleResize() {
   }
 }
 
-// Handle orientation changes
-function handleOrientationChange() {
-  // Small delay to ensure orientation change is complete
-  setTimeout(() => {
-    handleResize();
-  }, 100);
-}
-
 window.addEventListener("resize", handleResize);
-window.addEventListener("orientationchange", handleOrientationChange);
 
 // Initialize on load
 initializeCanvas();
 
 // Game constants (will be set after canvas initialization)
-let WATER_LEVEL =
-  canvas.height - (isMobile ? Math.max(30, canvas.height * 0.08) : 100);
-let ANVIL_SPAWN_RATE = 180; // Will be adjusted for mobile
-let BIG_ANVIL_SPAWN_RATE = 400; // Initialize this early
+let WATER_LEVEL = canvas.height - 100;
+let ANVIL_SPAWN_RATE = 180;
+let BIG_ANVIL_SPAWN_RATE = 400;
 const BALL_JUMP_POWER = -12;
 const AIR_JUMP_POWER = -8; // Weaker air jumps
 const SQUISH_DURATION = 60;
 const MAX_ANVILS_ON_SCREEN = 15;
 const MAX_ANVILS_ON_SEESAW = 8;
 const MAX_PARTICLES = 100;
-
-// Adjust game difficulty for mobile
-if (isMobile) {
-  ANVIL_SPAWN_RATE = 220; // Slower spawn rate on mobile for better performance
-  BIG_ANVIL_SPAWN_RATE = 500; // Also slower big anvil spawn rate on mobile
-}
 
 const PHYSICS = {
   gravity: 0.35, // Reduced from 0.5 for slower falling
@@ -133,21 +86,6 @@ const PHYSICS = {
   maxAngle: 0.4,
 };
 
-// Mobile physics adjustments for consistent feel
-const MOBILE_PHYSICS = {
-  gravity: 0.38, // Slightly stronger gravity on mobile for better responsiveness
-  friction: 0.94, // Reduced friction for more responsive movement (was 0.96)
-  moveSpeed: 0.75, // Much stronger movement for touch controls (increased from 0.55)
-  angleSmoothing: 0.08, // Keep same as desktop for consistent seesaw behavior
-  torqueScale: 0.0001, // Keep same as desktop for consistent anvil impact
-  maxAngle: 0.4, // Keep same as desktop for consistent seesaw tilt limits
-};
-
-// Get appropriate physics values based on device
-function getPhysics() {
-  return isMobile ? MOBILE_PHYSICS : PHYSICS;
-}
-
 const OBJECTS = {
   ball: { radius: 15, weight: 1 },
   anvil: { width: 25, height: 35, weight: 10, spawnVelocity: 2.5 }, // Reduced from 3
@@ -155,46 +93,19 @@ const OBJECTS = {
   seesaw: { width: canvas.width * 0.7, height: 25 },
 };
 
-// Mobile object adjustments - scale based on canvas size
-const MOBILE_OBJECTS = {
-  ball: { radius: Math.max(10, canvas.width * 0.025), weight: 1 }, // Scale with canvas width
-  anvil: {
-    width: Math.max(15, canvas.width * 0.04),
-    height: Math.max(20, canvas.width * 0.055),
-    weight: 10,
-    spawnVelocity: 2.8,
-  },
-  bigAnvil: {
-    width: Math.max(25, canvas.width * 0.07),
-    height: Math.max(35, canvas.width * 0.095),
-    weight: 25,
-    spawnVelocity: 3.3,
-  },
-  seesaw: {
-    width: canvas.width * 0.75,
-    height: Math.max(15, canvas.height * 0.025),
-  },
-};
-
-// Get appropriate object values based on device
-function getObjects() {
-  return isMobile ? MOBILE_OBJECTS : OBJECTS;
-}
-
 // Seesaw variables - initialized early to avoid reference errors
 let seesawAngle = 0;
 let targetSeesawAngle = 0;
 let seesawX = canvas.width / 2;
-let seesawY =
-  WATER_LEVEL - (isMobile ? Math.max(60, canvas.height * 0.12) : 250);
+let seesawY = WATER_LEVEL - 250;
 let seesawWidth = OBJECTS.seesaw.width;
 let seesawHeight = OBJECTS.seesaw.height;
 
-// Ball properties (radius will be set after device detection)
+// Ball properties
 const ball = {
   x: seesawX,
   y: seesawY - 50,
-  radius: 15, // Will be updated after mobile detection
+  radius: 15,
   velocityX: 0,
   velocityY: 0,
   onSeesaw: false,
@@ -206,9 +117,6 @@ const ball = {
   airJumps: 0,
   maxAirJumps: 2, // Allow 2 air jumps before needing to land
 };
-
-// Initialize ball radius based on device (after ball object is defined)
-ball.radius = getObjects().ball.radius;
 
 // Lives system
 let lives = 3;
@@ -240,21 +148,6 @@ const WATER_POCKET = {
   lifetime: 180, // How long they stay up (frames)
   pushForce: -15, // Upward force when ball touches
 };
-
-// Mobile water pocket adjustments - scale based on canvas size
-const MOBILE_WATER_POCKET = {
-  width: Math.max(50, canvas.width * 0.15), // Scale with canvas width
-  maxHeight: Math.max(80, canvas.height * 0.15), // Scale with canvas height
-  riseSpeed: 4,
-  fallSpeed: 2,
-  lifetime: 180,
-  pushForce: -15,
-};
-
-// Get appropriate water pocket values based on device
-function getWaterPocket() {
-  return isMobile ? MOBILE_WATER_POCKET : WATER_POCKET;
-}
 
 // Game timing
 let lastTime = 0;
@@ -331,139 +224,6 @@ document.addEventListener("keyup", (e) => {
   keys[e.key] = false;
 });
 
-// Touch controls for mobile
-let touchStartX = null;
-let touchStartY = null;
-let touchStartTime = null;
-let isTouching = false;
-let touchDirection = null; // 'left', 'right', or null
-let touchMoveThreshold = 15; // Reduced from default for more responsive swipes
-
-// Touch event handlers for mobile
-canvas.addEventListener(
-  "touchstart",
-  (e) => {
-    if (!isMobile) return; // Only handle touch on actual mobile devices
-
-    e.preventDefault();
-    const touch = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    touchStartX = (touch.clientX - rect.left) / gameScale;
-    touchStartY = (touch.clientY - rect.top) / gameScale;
-    touchStartTime = Date.now();
-    isTouching = true;
-    touchDirection = null;
-  },
-  { passive: false }
-);
-
-canvas.addEventListener(
-  "touchend",
-  (e) => {
-    if (!isMobile) return; // Only handle touch on actual mobile devices
-
-    e.preventDefault();
-    if (touchStartX === null || touchStartY === null) return;
-
-    const touchDuration = Date.now() - touchStartTime;
-    const rect = canvas.getBoundingClientRect();
-    const touch = e.changedTouches[0];
-    const touchEndX = (touch.clientX - rect.left) / gameScale;
-    const touchEndY = (touch.clientY - rect.top) / gameScale;
-
-    const deltaX = touchEndX - touchStartX;
-    const deltaY = touchEndY - touchStartY;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-    // Tap (short touch with minimal movement) = jump
-    if (touchDuration < 200 && distance < 20) {
-      // Reduced distance threshold
-      if (ball.canJump && !ball.jumpPressed) {
-        ball.jumpPressed = true;
-        if (ball.onSeesaw || ball.airJumps < ball.maxAirJumps) {
-          ball.velocityY = ball.onSeesaw ? BALL_JUMP_POWER : AIR_JUMP_POWER;
-          ball.onSeesaw = false;
-          if (!ball.onSeesaw) ball.airJumps++;
-        }
-      }
-    }
-    // Swipe gestures for movement
-    else if (distance > touchMoveThreshold) {
-      // Use configurable threshold
-      const physics = getPhysics();
-      const airControlFactor = ball.onSeesaw ? 2.2 : 1.2; // Increased for mobile
-
-      if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        // Horizontal swipe - increased multiplier for faster response
-        if (deltaX > 0) {
-          ball.velocityX += physics.moveSpeed * airControlFactor * 2.5; // Increased from 2
-        } else {
-          ball.velocityX -= physics.moveSpeed * airControlFactor * 2.5; // Increased from 2
-        }
-      } else if (deltaY > 0) {
-        // Downward swipe - fast fall
-        if (!ball.onSeesaw) ball.velocityY += 2; // Increased from 1.5
-      }
-    }
-
-    // Reset touch state
-    isTouching = false;
-    touchDirection = null;
-    touchStartX = null;
-    touchStartY = null;
-    touchStartTime = null;
-  },
-  { passive: false }
-);
-
-// Prevent default touch behaviors and handle continuous movement
-canvas.addEventListener(
-  "touchmove",
-  (e) => {
-    if (!isMobile) return; // Only prevent default on actual mobile devices
-
-    e.preventDefault();
-
-    // Handle continuous movement during touch drag
-    if (isTouching && touchStartX !== null && touchStartY !== null) {
-      const touch = e.touches[0];
-      const rect = canvas.getBoundingClientRect();
-      const currentX = (touch.clientX - rect.left) / gameScale;
-      const currentY = (touch.clientY - rect.top) / gameScale;
-
-      const deltaX = currentX - touchStartX;
-      const deltaY = currentY - touchStartY;
-      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-      // Only start continuous movement if we've moved enough
-      if (distance > touchMoveThreshold) {
-        const physics = getPhysics();
-        const continuousMoveFactor = 0.3; // Reduced factor for smooth continuous movement
-
-        if (Math.abs(deltaX) > Math.abs(deltaY)) {
-          // Determine direction for continuous movement
-          if (deltaX > touchMoveThreshold && touchDirection !== "right") {
-            touchDirection = "right";
-          } else if (
-            deltaX < -touchMoveThreshold &&
-            touchDirection !== "left"
-          ) {
-            touchDirection = "left";
-          }
-
-          // Apply continuous movement
-          if (touchDirection === "right") {
-            ball.velocityX += physics.moveSpeed * continuousMoveFactor;
-          } else if (touchDirection === "left") {
-            ball.velocityX -= physics.moveSpeed * continuousMoveFactor;
-          }
-        }
-      }
-    }
-  },
-  { passive: false }
-);
-
 // Play Again button event listener
 document.addEventListener("DOMContentLoaded", () => {
   const playAgainButton = document.getElementById("playAgainButton");
@@ -471,17 +231,10 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function handleInput() {
-  const physics = getPhysics();
-  const airControlFactor = ball.onSeesaw
-    ? isMobile
-      ? 2.2
-      : 1.8
-    : isMobile
-    ? 1.2
-    : 0.8; // Enhanced mobile air control
+  const airControlFactor = ball.onSeesaw ? 1.8 : 0.8;
   const controls = {
-    ArrowLeft: () => (ball.velocityX -= physics.moveSpeed * airControlFactor),
-    ArrowRight: () => (ball.velocityX += physics.moveSpeed * airControlFactor),
+    ArrowLeft: () => (ball.velocityX -= PHYSICS.moveSpeed * airControlFactor),
+    ArrowRight: () => (ball.velocityX += PHYSICS.moveSpeed * airControlFactor),
     ArrowUp: () => {
       const currentlyPressed = keys["ArrowUp"];
 
@@ -542,8 +295,6 @@ function applyBoundaryCollision(obj, bounds, restitution = 0.7) {
 function updateBall() {
   if (respawning) return;
 
-  const physics = getPhysics();
-
   if (ball.isSquished) {
     if (--ball.squishTimer <= 0) {
       ball.isSquished = false;
@@ -563,7 +314,7 @@ function updateBall() {
     return;
   }
 
-  if (!ball.onSeesaw) ball.velocityY += physics.gravity;
+  if (!ball.onSeesaw) ball.velocityY += PHYSICS.gravity;
 
   // Clamp velocities to prevent clipping through objects
   ball.velocityX = clampVelocity(ball.velocityX, -15, 15);
@@ -574,7 +325,7 @@ function updateBall() {
 
   // Apply different friction based on whether ball is on seesaw or in air
   if (ball.onSeesaw) {
-    ball.velocityX *= physics.friction;
+    ball.velocityX *= PHYSICS.friction;
   } else {
     // Less air resistance when not on seesaw for better control
     ball.velocityX *= 0.99;
@@ -733,11 +484,11 @@ function updateSplash() {
 function spawnWaterPocketOnSide(side) {
   // Calculate seesaw bounds to avoid spawning under it
   const seesawBounds = getSeesawBounds();
-  const seesawBuffer = isMobile ? 30 : 50; // Smaller buffer on mobile
+  const seesawBuffer = 50;
   const avoidLeft = seesawBounds.left - seesawBuffer;
   const avoidRight = seesawBounds.right + seesawBuffer;
 
-  const waterPocket = getWaterPocket();
+  const waterPocket = WATER_POCKET;
 
   let spawnX;
 
@@ -847,7 +598,7 @@ function updateWaterPockets() {
 function checkWaterPocketCollision(pocket) {
   if (pocket.height <= 0) return;
 
-  const waterPocket = getWaterPocket();
+  const waterPocket = WATER_POCKET;
   const pocketTop = WATER_LEVEL - pocket.height;
   const pocketLeft = pocket.x - waterPocket.width / 2;
   const pocketRight = pocket.x + waterPocket.width / 2;
@@ -882,7 +633,7 @@ function checkWaterPocketCollision(pocket) {
 
 function createWaterPocketParticles(pocket) {
   // Add spray particles when pocket is active
-  const waterPocket = getWaterPocket();
+  const waterPocket = WATER_POCKET;
   for (let i = 0; i < 8; i++) {
     const angle = Math.PI / 3 + (Math.random() - 0.5) * (Math.PI / 2); // Spray upward
     const speed = 3 + Math.random() * 4;
@@ -949,7 +700,7 @@ function drawWaterPockets() {
   waterPockets.forEach((pocket) => {
     if (pocket.height <= 0) return;
 
-    const waterPocket = getWaterPocket();
+    const waterPocket = WATER_POCKET;
     const pocketTop = WATER_LEVEL - pocket.height;
     const pocketLeft = pocket.x - waterPocket.width / 2;
     const pocketRight = pocket.x + waterPocket.width / 2;
@@ -1039,7 +790,7 @@ function resetGame() {
 
   // Reset ball
   resetBallState(seesawX, seesawY - 50);
-  ball.radius = getObjects().ball.radius;
+  ball.radius = OBJECTS.ball.radius;
 
   // Clear anvils
   anvils = [];
@@ -1088,7 +839,7 @@ function spawnAnvil() {
   // Don't spawn if too many anvils already exist
   if (anvils.length >= MAX_ANVILS_ON_SCREEN) return;
 
-  const objects = getObjects();
+  const objects = OBJECTS;
   anvils.push({
     x: Math.random() * canvas.width,
     y: -30,
@@ -1108,7 +859,7 @@ function spawnBigAnvil() {
   // Don't spawn if too many anvils already exist
   if (anvils.length >= MAX_ANVILS_ON_SCREEN) return;
 
-  const objects = getObjects();
+  const objects = OBJECTS;
   anvils.push({
     x: Math.random() * canvas.width,
     y: -60,
@@ -1288,9 +1039,7 @@ function updateAnvilPhysics(anvil) {
     anvil.hitWater = true;
     const baseImpactMagnitude =
       Math.abs(anvil.velocityY) + (anvil.isBig ? 6 : 3);
-    // Enhance big anvil splash effects on mobile
-    const mobileMultiplier = isMobile && anvil.isBig ? 1.3 : 1.0;
-    const impactMagnitude = baseImpactMagnitude * mobileMultiplier;
+    const impactMagnitude = baseImpactMagnitude;
     createSplash(anvil.x, WATER_LEVEL, "anvil", impactMagnitude);
   }
 }
@@ -1341,8 +1090,6 @@ function updateAnvilBallCollision(anvil) {
 
 function handleBigAnvilBallInteraction(anvil) {
   // Big anvils push the ball more forcefully
-  // Apply stronger effects on mobile to compensate for touch controls
-  const mobileMultiplier = isMobile ? 1.3 : 1.0;
 
   if (ball.y < anvil.y - anvil.height / 2 && ball.velocityY >= 0) {
     ball.y = anvil.y - anvil.height / 2 - ball.radius;
@@ -1351,7 +1098,7 @@ function handleBigAnvilBallInteraction(anvil) {
     // Push ball away from sides of big anvil with more force
     const pushDirection = ball.x < anvil.x ? -1 : 1;
     ball.x = anvil.x + pushDirection * (anvil.width / 2 + ball.radius + 5);
-    ball.velocityX = pushDirection * 4 * mobileMultiplier; // Stronger push for big anvils, enhanced on mobile
+    ball.velocityX = pushDirection * 4; // Stronger push for big anvils
   }
 }
 
@@ -1657,9 +1404,8 @@ function drawAnvils() {
 }
 
 function updateSeesawPhysics() {
-  const physics = getPhysics();
-  const objects = getObjects();
-  seesawAngle += (targetSeesawAngle - seesawAngle) * physics.angleSmoothing;
+  const objects = OBJECTS;
+  seesawAngle += (targetSeesawAngle - seesawAngle) * PHYSICS.angleSmoothing;
 
   let leftTorque = 0,
     rightTorque = 0,
@@ -1702,12 +1448,12 @@ function updateSeesawPhysics() {
 
   targetSeesawAngle =
     netTorque *
-    physics.torqueScale *
+    PHYSICS.torqueScale *
     (anvilsOnSeesaw > 0 ? 1.2 : 1) *
     bigAnvilMultiplier;
 
   const safeMaxAngle = Math.min(
-    physics.maxAngle,
+    PHYSICS.maxAngle,
     Math.abs(Math.atan((WATER_LEVEL - seesawY - 50) / (seesawWidth / 2)))
   );
   targetSeesawAngle = Math.max(
