@@ -2,6 +2,9 @@
 
 A physics-based browser game where you control a metallic ball on a dynamic seesaw while avoiding falling anvils.
 
+
+![Calculated Chaos Game Demo](cc.gif)
+
 ## How to Play
 
 **Objective**: Keep your ball alive, avoid anvils, don't fall in the water. You have 3 lives.
@@ -9,7 +12,6 @@ A physics-based browser game where you control a metallic ball on a dynamic sees
 **Controls**:
 
 - **Desktop**: Arrow keys to move/jump
-- **Mobile**: Tap to jump, swipe to move
 
 ## Quick Start
 
