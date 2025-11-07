@@ -2,6 +2,8 @@
 
 A physics-based browser game where you control a metallic ball on a dynamic seesaw while avoiding falling anvils.
 
+**🎮 [Play the Demo](https://calculatedchaos.netlify.app/)**
+
 
 ![Calculated Chaos Game Demo](cc.gif)
 
